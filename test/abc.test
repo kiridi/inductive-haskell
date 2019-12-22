@@ -1,0 +1,14 @@
+NEX target ((1:2:3:nil)) => 7 ;;
+NEX target ((1:2:nil)) => 4 ;;
+
+PEX target ((1:2:3:nil)) => 6 ;;
+PEX target ((1:2:nil)) => 3 ;;
+PEX target ((1:2:3:4:nil)) => 10 ;;
+
+rec addel(xs) = if xs = nil
+                 then 0
+                 else head(xs) + addel(tail(xs));;
+
+val target(xs) = addel(xs);;
+
+SYNTH target;;
