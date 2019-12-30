@@ -2,6 +2,7 @@ module Language.Syntax where
 
 import Data.Char(isAlpha)
 import Data.List(intersperse)
+import Elements
 
 data Phrase =                 -- Top-level phrase $p$
     Calculate Expr            -- \pg $e$;;

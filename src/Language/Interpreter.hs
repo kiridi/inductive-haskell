@@ -5,9 +5,30 @@ import Language.Syntax
 import Language.FunParser
 import Language.Environment
 import Language.Types
+import Data.Maybe
+import Control.Exception
+
+import Elements
+import PSBuilder
 
 -- An environment is a map from identifiers to values
 type Env = Environment Value
+
+data Example a = Pos [a] a
+               | Neg [a] a
+               deriving Show
+
+data Value =
+    IntVal Integer              -- Integers
+  | BoolVal Bool                -- Booleans
+  | Function ([Value] -> Value) -- Functions
+  | Nil                         -- Empty list
+  | Cons Value Value            -- Non-empty lists
+  | PosExs [Example Value]      -- Positive Example
+  | NegExs [Example Value]      -- Negative Example
+  | Success String              -- Successfully synthesized
+  | Failure String              -- Successfully synthesized
+  | Excp
 
 eval :: Expr -> Env -> Value
 
@@ -64,15 +85,28 @@ elab (NEx f ins out) env =
         eins = map (\ e -> eval e env) ins
         eout = eval out env
 
-check_synth :: Ident -> Env -> Value
-check_synth target env = 
+synthTranslateDefn :: IFunction -> Defn
+synthTranslateDefn (Complete name mr fofs) = 
+  case mr of 
+    COMP -> Val name (Lambda ["x"] 
+                             (Apply (Variable (extractName (fofs!!0))) 
+                                    [(Apply (Variable (extractName (fofs!!1))) 
+                                            [(Variable "x")])]))
+    MAP -> Val name (Lambda ["xs"]
+                            (Apply (Variable "map") [Variable (extractName (fofs!!0)), Variable "xs"]))
+
+  where extractName (FOF name) = name
+synthTranslateDefn _ = error "should be complete"
+
+checkSynth :: Ident -> [IFunction] -> Env -> Bool
+checkSynth target funcs env = 
   if (res_pos get_pex == True && res_neg get_nex == False)
-  then (Success target)
-  else (Failure target)
+  then True --(Success target)
+  else False --(Failure target)
   where get_pex = find env ("pos_" ++ target)
         get_nex = find env ("neg_" ++ target)
         func name = 
-          case find env name of
+          case find newEnv name of
             Function f -> Function f
             _ -> error "wtf f"
         f (Pos ins out) b = (apply (func target) ins == out) && b
@@ -81,6 +115,7 @@ check_synth target env =
         g _ _ = error "wtf n"
         res_pos (PosExs exs) = foldr f True exs
         res_neg (NegExs exs) = foldr g False exs
+        newEnv = foldr (\ifun env' -> elab (synthTranslateDefn ifun) env') env funcs
 
 init_env :: Env
 init_env = 
@@ -105,9 +140,13 @@ init_env =
       case a of IntVal _ -> BoolVal True; _ -> BoolVal False),
     pureprim "head" (\ [Cons h t] -> h),
     pureprim "tail" (\ [Cons h t] -> t),
-    pureprim ":" (\ [a, b] -> Cons a b)]
-  where constant x v = (x, v)
-        pureprim x f = (x, Function (primwrap x f))
+    pureprim ":" (\ [a, b] -> Cons a b),
+
+    pureprim "map" (\[Function f, xs] -> mapply f xs)]
+    where constant x v = (x, v)
+          pureprim x f = (x, Function (primwrap x f))
+          mapply f (Cons a b) = Cons (f [a]) (mapply f b)
+          mapply f Nil = Nil
 
 instance Eq Value where
   IntVal a == IntVal b = a == b
@@ -146,5 +185,17 @@ obey (Define def) env =
         ex_def (NEx _ _ _) = True
         ex_def _  = False
 
-obey (Synth name) env = 
-  (show (check_synth name env), env)
+obey (Synth name) env = (name ++ " added to env: " ++ show (extractTarget comps), newEnv)
+  where Just ((IProgram _ comps), _) = iddfs (check env) expand (IProgram [Incomplete name MEmpty []] [], (metarules, ["addOne"]))
+        newEnv = elab (synthTranslateDefn $ extractTarget comps) env
+        extractTarget [] = error "???"
+        extractTarget ((Complete fn x y):fs) =
+          if fn == name
+          then (Complete fn x y)
+          else extractTarget fs
+metarules :: [Metarule]
+metarules = [MAP]
+
+check :: Env -> (IProgram, State) -> Bool
+check env (IProgram [] cs, state) = isComplete (IProgram [] cs) && checkSynth "target" cs env
+check _ _ = False

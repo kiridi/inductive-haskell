@@ -1,16 +1,23 @@
-module Language.Types where
+{-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE DeriveFunctor, DeriveFoldable,
+             DeriveTraversable, DeriveGeneric,
+             DeriveAnyClass, FlexibleContexts
+#-}
 
-data Example a = Pos [a] a
-               | Neg [a] a
-               deriving Show
+module Language.Types (
+  HelperTypes
+) where
 
-data Value =
-    IntVal Integer              -- Integers
-  | BoolVal Bool                -- Booleans
-  | Function ([Value] -> Value) -- Functions
-  | Nil                         -- Empty list
-  | Cons Value Value            -- Non-empty lists
-  | PosExs [Example Value]      -- Positive Example
-  | NegExs [Example Value]      -- Negative Example
-  | Success String              -- Successfully synthesized
-  | Failure String              -- Successfully synthesized
+import Data.Functor.Identity
+import Control.Unification
+import Control.Unification.IntVar
+import Control.Unification.Types
+import Control.Monad.Trans.Except
+import Control.Monad.Trans.Class
+import qualified Data.Map as Map
+import GHC.Generics
+
+data HelperTypes a = TInt 
+                   | TArray (HelperTypes a)
+                   | Arrow [HelperTypes a] (HelperTypes a) 
+    deriving (Functor, Foldable, Traversable, Show, Generic1, Unifiable)
