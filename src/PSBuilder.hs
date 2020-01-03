@@ -4,20 +4,21 @@ import Elements
 import Data.List
 import Language.Environment
 import Language.Types
-import Data.Set hiding (take, map, filter, foldr)
--- import Data.PQueue.Max
+import Data.Maybe
 
-data IFunction = Incomplete String Metarule [FOF]
-               | Complete String Metarule [FOF] deriving (Eq, Show)
-data IProgram = IProgram [IFunction] [IFunction] deriving (Eq, Show)
+data IFunction = Incomplete String Metarule HelperType Constraint [FOF]
+               | Complete String Metarule HelperType Constraint [FOF] 
+               deriving (Eq, Show)
+data IProgram = IProgram [IFunction] [IFunction]
+               deriving (Eq, Show)
 
 type MetaPool = [Metarule]
-type FuncPool = [String]
+type FuncPool = [(String, HelperType)]
 type State = (MetaPool, FuncPool)
 
 isComplete :: IProgram -> Bool
 isComplete (IProgram [] cs) = all checkComp cs
-    where checkComp (Complete _ _ cs) = True
+    where checkComp (Complete _ _ _ _ cs) = True
           checkComp _ = False 
 isComplete _ = False
 
@@ -47,30 +48,43 @@ expand (prog, (mp, fp)) = if hasMetarule prog
                           else concat (map create [0 .. (length mp) - 1])
     where create idx = let progs = specialize prog (mp !! idx) fp in
                        zip progs (repeat (mp, fp))
-          hasMetarule (IProgram ((Incomplete name MEmpty _):is) cs) = False
+          hasMetarule (IProgram ((Incomplete name MEmpty _ _ _):is) cs) = False
           hasMetarule _ = True
 
 specialize :: IProgram -> Metarule -> FuncPool -> [IProgram]
 specialize (IProgram [] cs) mr fp = [IProgram [] cs]
 specialize (IProgram (i:is) cs) mr fp = 
     case i of
-        Complete _ _ _ -> [IProgram is (i:cs)]
-        Incomplete _ _ _ -> map createIPs (fill i mr [] fp) 
+        Complete _ _ _ _ _ -> [IProgram is (i:cs)]
+        Incomplete _ _ _ _ _ -> map createIPs (fill i mr fp []) 
                           where createIPs fun = (IProgram (fun:is) cs)
 
-nFPh :: Metarule -> Int                                                                                                                                                                                              
-nFPh MEmpty = 0
-nFPh IF = 3
-nFPh COMP = 2
-nFPh MAP = 1
-nFPh FOLD = 2
-nFPh FILTER = 1
+mrType :: Metarule -> ([HelperType], HelperType)
+mrType COMP = ([Arrow [(TVar (TV "b"))] (TVar (TV "c")), 
+               Arrow [(TVar (TV "a"))] (TVar (TV "b"))],
+               (Arrow [TVar (TV "a")] (TVar (TV "c"))))
+mrType MAP = ([Arrow [TVar (TV "a")] (TVar (TV "b"))],
+              Arrow [TArray (TVar (TV "a"))] (TArray (TVar (TV "b"))))
+mrType FILTER = ([Arrow [TVar (TV "a")] (BaseType "Bool")],
+                 Arrow [TArray (TVar (TV "a"))] (TArray (TVar (TV "a"))))
 
-fill :: IFunction -> Metarule -> [FOF] -> FuncPool -> [IFunction]
-fill (Incomplete name MEmpty []) mr _ fp = [Incomplete name mr fPhs]
-    where fPhs = take (nFPh mr) (repeat FEmpty) 
-fill (Incomplete name mr (FEmpty:xs)) _  bf fp = map createIFs fp
-    where createIFs func = Incomplete name mr (bf ++ (FOF func:xs))
-fill (Incomplete name mr (FOF f:xs)) newMr bf fp = fill (Incomplete name mr xs) newMr (bf ++ [FOF f]) fp
-fill (Incomplete name mr []) newMr bf fp = [Complete name mr bf] -- is this ok?
-fill (Complete name m fofs) mr bf fp = [Complete name m fofs]
+fill :: IFunction -> Metarule -> FuncPool -> [FOF] -> [IFunction]
+fill (Incomplete name MEmpty ift _ []) mr fp _ = 
+    case newConstraint of
+        Just c -> [Incomplete name mr ift c fPhs]
+        Nothing -> []
+    where (inputs, output) = mrType mr
+          newConstraint = unifier ift output emptyC
+          fPhs = map (\t -> FEmpty t) inputs
+
+fill (Incomplete name mr ift cons ((FEmpty fType):xs)) _ fp prev = onlyPossible fp
+    where onlyPossible [] = []
+          onlyPossible ((fn, ft):fs) = 
+            case unifier ft fType cons of
+                Just newC -> (Incomplete name mr ift newC (prev ++ (FOF fn:xs))):(onlyPossible fs)
+                Nothing -> onlyPossible fs
+
+fill (Incomplete name mr fType cons (FOF f:xs)) newMr fp prev = 
+    fill (Incomplete name mr fType cons xs) newMr fp (prev ++ [FOF f])
+fill (Incomplete name mr fType cons []) _ fp prev  = [Complete name mr fType cons prev] -- is this ok?
+fill (Complete name m fTyp cons fofs) _ _ _ = [Complete name m fTyp cons fofs]

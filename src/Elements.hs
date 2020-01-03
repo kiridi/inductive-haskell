@@ -1,8 +1,5 @@
 module Elements where
 import Language.Types
-
--- data Ph a = MPh (Metarule a)
---           | FPh Int (FOF a)
  
 data Metarule = MEmpty
               | IF
@@ -11,5 +8,5 @@ data Metarule = MEmpty
               | FOLD
               | FILTER deriving (Eq, Ord, Show)
 
-data FOF = FEmpty
+data FOF = FEmpty HelperType
          | FOF String deriving (Eq, Show)

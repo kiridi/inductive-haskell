@@ -7,5 +7,7 @@ import Language.Environment
 import PSBuilder
 import Elements
 import Data.Set
+import Language.Types
+import Data.Maybe
 
 main = dialog funParser obey init_env
