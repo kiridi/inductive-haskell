@@ -48,8 +48,7 @@ eval (Lambda xs e1) env = abstract xs e1 env
 
 eval (Let d e1) env = eval e1 (elab d env)
 
-eval e env =
-  error ("can't evaluate " ++ pretty e)
+eval e env = error ("can't evaluate")
 
 apply :: Value -> [Value] -> Value
 apply (Function f) args = f args
@@ -201,15 +200,8 @@ obey (Define def) env =
         ex_def (NEx _ _ _) = True
         ex_def _  = False
 
-obey (Synth name) env = (name ++ " added to env: " ++ show comps, newEnv)
-  where Just ((IProgram _ comps _), _) = 
-          iddfs (check env) expand initProg
-        newEnv = elab (ifToDefn $ extractTarget comps) env -- TODO: add all
-        extractTarget [] = error "no target found?"
-        extractTarget ((Complete fn mr t fofs):fs) =
-          if fn == name
-          then (Complete fn mr t fofs)
-          else extractTarget fs
+obey (Synth name) env = ("\n" ++ name ++ " found: \n" ++ show prog, env)
+  where Just (prog, _) = iddfs (check env) expand initProg
         bkfof = [("addOne", Arrow [BaseType "Int"] (BaseType "Int")), 
                  ("addTwo", Arrow [BaseType "Int"] (BaseType "Int")),  
                  ("isOdd", Arrow [BaseType "Int"] (BaseType "Bool")),
@@ -222,6 +214,6 @@ metarules :: [Metarule]
 metarules = [MAP, COMP, FILTER]
 
 check :: Env -> (IProgram, State) -> Bool
-check env (IProgram [] cs constr, state) = (isComplete (IProgram [] cs constr) && 
-                                           checkTarget "target" cs env)
+check env (IProgram [] cs constr, state) = isComplete (IProgram [] cs constr) && 
+                                           checkTarget "target" cs env
 check _ _ = False

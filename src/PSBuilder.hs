@@ -7,13 +7,6 @@ import Language.Types
 import Data.Maybe
 import Debug.Trace
 
-data IFunction = Incomplete String Metarule HelperType [FOF]
-               | Complete String Metarule HelperType [FOF] 
-               deriving (Eq, Show)
-
-data IProgram = IProgram [IFunction] [IFunction] Constraint
-              deriving (Eq, Show)
-
 type MetaPool = [Metarule]
 type Signature = (String, HelperType)
 type FuncPool = [Signature]

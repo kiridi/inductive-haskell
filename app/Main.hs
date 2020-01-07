@@ -24,6 +24,5 @@ time a = do
     return v
 
 main = do
-    putStrLn "Starting..."
+    putStrLn "Starting...\n"
     time $ dialog funParser obey init_env
-    putStrLn "Done."

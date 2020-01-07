@@ -9,26 +9,12 @@ data HelperType = TVar String
                 | Arrow [HelperType] (HelperType) 
                 deriving (Show, Eq)
 
--- instance (Eq HelperType) where
---   TVar s1 == TVar s2 = s1 == s2
---   BaseType t1 == BaseType t2 = t1 == t2
---   TArray ht1 == TArray ht2 = ht1 == ht2
---   Arrow ins1 out1 == Arrow ins2 out2 = out2 == out1 && all (\(t1, t2) -> t1 == t2) (zip ins1 ins2)
-
-type Constraint = Map String (HelperType)
+type Constraint = Map String HelperType
 
 emptyC :: Constraint
 emptyC = Map.empty
--- TODO: Whole unifier
+
 unifier :: HelperType -> HelperType -> Constraint -> Maybe Constraint
-
-follow (TVar v) const = 
-  case Map.lookup v const of
-    Just (TVar v2) -> follow (TVar v2) const
-    Just (el) -> Just el
-    Nothing -> Nothing
-follow el _ = Just el
-
 unifier (BaseType t1) (BaseType t2) const = 
   if t1 == t2
   then Just const

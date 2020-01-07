@@ -1,0 +1,23 @@
+val addOne(x: Int) : Int = x + 1;;
+
+val addTwo(x : Int) : Int = x + 2;;
+
+val isOdd(x : Int) : Bool = 
+    if x mod 2 = 0 
+    then false
+    else true;;
+
+rec reverse1(xs: [Int], ys : [Int]) : [Int] = 
+    if xs = nil
+    then ys
+    else reverse1(tail(xs), head(xs):ys);;
+
+val tl(xs : [a]) : [a] = if xs = nil then nil else tail(xs);;
+
+val reverse(xs : [a]) : [a] = reverse1(xs, nil);;
+
+NEX target ((1:2:nil):(1:2:3:4:nil):nil) => ((5:nil):nil) ;;
+NEX target ((1:2:5:nil):(2:nil):nil) => ((1:2:3:4:nil):nil) ;;
+PEX target ((1:2:nil):(2:3:nil):(3:4:nil):nil) => ((1:nil):(2:nil):nil) ;;
+PEX target ((5:6:nil):(6:nil):nil) => ((5:nil):nil) ;;
+SYNTH target : [[Int]] -> [[Int]];;
