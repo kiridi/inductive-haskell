@@ -5,16 +5,16 @@ import qualified Data.Map as Map
 
 type Ident = String
 
-newtype Environment v = Env (Map.Map Ident v)
+newtype Environment v = Env (Map.Map Ident v) deriving Show
 
 empty_env :: Environment v
 empty_env = Env Map.empty
 
-find :: Environment v -> Ident -> v
+find :: (Show v) => Environment v -> Ident -> v
 find (Env m) x =
   case Map.lookup x m of
     Just v -> v
-    Nothing -> error (show x ++ " is not defined")
+    Nothing -> error (show x ++ " is not defined" ++ show m)
 
 maybe_find :: Environment v -> Ident -> Maybe v
 maybe_find (Env m) x = Map.lookup x m

@@ -7,6 +7,7 @@ import Language.Environment
 import Language.Types
 import Data.Maybe
 import Control.Exception
+import Data.List hiding (find)
 
 import Elements
 import PSBuilder
@@ -83,7 +84,7 @@ elab (NEx f ins out) env =
         eout = eval out env
 
 ifToDefn :: IFunction -> Defn
-ifToDefn (Complete name mr _ _ fofs) = 
+ifToDefn (Complete name mr _ fofs) = 
   case mr of 
     COMP -> Val name (Lambda ["x"] 
                              (Apply (Variable (extractName (fofs!!0))) 
@@ -93,6 +94,9 @@ ifToDefn (Complete name mr _ _ fofs) =
                             (Apply (Variable "map") [Variable (extractName (fofs!!0)), Variable "xs"]))
     FILTER -> Val name (Lambda ["xs"]
                                (Apply (Variable "filter") [Variable (extractName (fofs!!0)), Variable "xs"]))
+    -- FApply -> Val name (Lambda ["x"] -- TODO: variable number of args
+    --                            (Apply (Variable (extractName (fofs!!0)))
+    --                                   [Variable "x"]))
   where extractName (FOF name) = name
 ifToDefn _ = error "should be complete"
 
@@ -113,7 +117,17 @@ checkTarget target funcs env =
         g _ _ = error "wtf n"
         res_pos (PosExs exs) = foldr f True exs
         res_neg (NegExs exs) = foldr g False exs
-        newEnv = foldr (\ifun env' -> elab (ifToDefn ifun) env') env funcs
+        newEnv = (foldr (\ifun env' -> elab (ifToDefn ifun) env') env (order funcs)) -- TODO reverse sure? no do topo sort
+        order fs = reverse (sortBy sf fs)
+        sf (Complete n1 _ _ _) (Complete n2 _ _ _) = 
+          if n1 == "target"
+          then GT
+          else 
+            if n2 == "target"
+            then LT
+            else if (read (drop 3 n1) :: Integer) < (read (drop 3 n2) :: Integer)
+            then GT
+            else LT
 
 init_env :: Env
 init_env = 
@@ -187,18 +201,27 @@ obey (Define def) env =
         ex_def (NEx _ _ _) = True
         ex_def _  = False
 
-obey (Synth name) env = (name ++ " added to env: " ++ show (extractTarget comps), newEnv)
-  where Just ((IProgram _ comps), _) = 
-          iddfs (check env) expand (IProgram [Incomplete name MEmpty (Arrow [TArray (BaseType "Int")] (TArray (BaseType "Int"))) emptyC []] [], (metarules, [("addOne", Arrow [BaseType "Int"] (BaseType "Int")), ("addTwo", Arrow [BaseType "Int"] (BaseType "Int")),  ("isOdd", Arrow [BaseType "Int"] (BaseType "Bool"))]))
-        newEnv = elab (ifToDefn $ extractTarget comps) env
+obey (Synth name) env = (name ++ " added to env: " ++ show comps, newEnv)
+  where Just ((IProgram _ comps _), _) = 
+          iddfs (check env) expand initProg
+        newEnv = elab (ifToDefn $ extractTarget comps) env -- TODO: add all
         extractTarget [] = error "no target found?"
-        extractTarget ((Complete fn mr t cs fofs):fs) =
+        extractTarget ((Complete fn mr t fofs):fs) =
           if fn == name
-          then (Complete fn mr t cs fofs)
+          then (Complete fn mr t fofs)
           else extractTarget fs
+        bkfof = [("addOne", Arrow [BaseType "Int"] (BaseType "Int")), 
+                 ("addTwo", Arrow [BaseType "Int"] (BaseType "Int")),  
+                 ("isOdd", Arrow [BaseType "Int"] (BaseType "Bool")),
+                 ("reverse", Arrow [TArray (TVar "a")] (TArray (TVar "a"))),
+                 ("tl", Arrow [TArray (TVar "a")] (TArray (TVar "a")))]
+        myType = Arrow [TArray (TArray (BaseType "Int"))] (TArray (TArray (BaseType "Int")))
+        initProg = (IProgram [Incomplete name MEmpty myType []] [] emptyC, (metarules, bkfof, 0))
+
 metarules :: [Metarule]
 metarules = [MAP, COMP, FILTER]
 
 check :: Env -> (IProgram, State) -> Bool
-check env (IProgram [] cs, state) = isComplete (IProgram [] cs) && checkTarget "target" cs env
+check env (IProgram [] cs constr, state) = (isComplete (IProgram [] cs constr) && 
+                                           checkTarget "target" cs env)
 check _ _ = False

@@ -1,0 +1,29 @@
+
+Warning: C:\Users\Blade\Documents\OxCS\3rd Year Proj\inductive-haskell\inductive-haskell.cabal was
+         modified manually. Ignoring
+         C:\Users\Blade\Documents\OxCS\3rd Year Proj\inductive-haskell\package.yaml in favor of the
+         cabal file. If you want to use the package.yaml file instead of the cabal file, then please
+         delete the cabal file.
+inductive-haskell-0.1.0.0: unregistering (local file changes: src\Language\Interpreter.hs src\Language\Parsing.hs)
+Received ExitFailure 1 when running
+Raw command: "C:\\Users\\Blade\\AppData\\Local\\Programs\\stack\\x86_64-windows\\ghc-8.6.5\\bin\\ghc-pkg.EXE" --no-user-package-db "--package-db=C:\\Users\\Blade\\Documents\\OxCS\\3rd Year Proj\\inductive-haskell\\.stack-work\\install\\072e9945\\pkgdb\\" unregister --user --force --ipid inductive-haskell-0.1.0.0-7gRapvXEpvwGdz1pf9hTIX
+Standard error:
+
+ghc-pkg.EXE: C:\Users\Blade\Documents\OxCS\3rd Year Proj\inductive-haskell\.stack-work\install\072e9945\pkgdb\package.cache.lock: openBinaryFile: resource busy (file is locked)
+
+inductive-haskell-0.1.0.0: build (lib + exe)
+Preprocessing library for inductive-haskell-0.1.0.0..
+Building library for inductive-haskell-0.1.0.0..
+[7 of 9] Compiling Language.Parsing ( src\Language\Parsing.hs, .stack-work\dist\e626a42b\build\Language\Parsing.o )
+[8 of 9] Compiling Language.FunParser ( src\Language\FunParser.hs, .stack-work\dist\e626a42b\build\Language\FunParser.o ) [Language.Parsing changed]
+[9 of 9] Compiling Language.Interpreter ( src\Language\Interpreter.hs, .stack-work\dist\e626a42b\build\Language\Interpreter.o )
+
+C:\Users\Blade\Documents\OxCS\3rd Year Proj\inductive-haskell\src\Language\Interpreter.hs:220:1: error:
+    parse error (possibly incorrect indentation or mismatched brackets)
+    |
+220 | metarules :: [Metarule]
+    | ^
+
+--  While building package inductive-haskell-0.1.0.0 using:
+      C:\sr\setup-exe-cache\x86_64-windows\Cabal-simple_Z6RU0evB_2.4.0.1_ghc-8.6.5.exe --builddir=.stack-work\dist\e626a42b build lib:inductive-haskell exe:inductive-haskell-exe --ghc-options " -ddump-hi -ddump-to-file"
+    Process exited with code: ExitFailure 1

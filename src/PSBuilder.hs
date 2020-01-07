@@ -5,34 +5,37 @@ import Data.List
 import Language.Environment
 import Language.Types
 import Data.Maybe
+import Debug.Trace
 
-data IFunction = Incomplete String Metarule HelperType Constraint [FOF]
-               | Complete String Metarule HelperType Constraint [FOF] 
+data IFunction = Incomplete String Metarule HelperType [FOF]
+               | Complete String Metarule HelperType [FOF] 
                deriving (Eq, Show)
-data IProgram = IProgram [IFunction] [IFunction]
-               deriving (Eq, Show)
+
+data IProgram = IProgram [IFunction] [IFunction] Constraint
+              deriving (Eq, Show)
 
 type MetaPool = [Metarule]
-type FuncPool = [(String, HelperType)]
-type State = (MetaPool, FuncPool)
+type Signature = (String, HelperType)
+type FuncPool = [Signature]
+type State = (MetaPool, FuncPool, Int)
 
 isComplete :: IProgram -> Bool
-isComplete (IProgram [] cs) = all checkComp cs
-    where checkComp (Complete _ _ _ _ cs) = True
+isComplete (IProgram [] cs _) = all checkComp cs
+    where checkComp (Complete _ _ _ cs) = True
           checkComp _ = False 
 isComplete _ = False
 
 --- IDDFS
 
 selectFirstResult :: (a -> Maybe b) -> [a] -> Maybe b
-selectFirstResult f [] = Nothing
-selectFirstResult f (x:xs) = 
-    case f x of
-        Nothing -> selectFirstResult f xs
-        _ -> f x 
+selectFirstResult select [] = Nothing
+selectFirstResult select (x:xs) = 
+    case select x of
+        Nothing -> selectFirstResult select xs
+        _ -> select x 
 
 iddfs :: (a -> Bool) -> (a -> [a]) -> a -> Maybe a
-iddfs c e i = selectFirstResult (\d -> boundedSearch d c e i) [1 .. ]
+iddfs c e i = selectFirstResult (\d -> (trace ("Searching at depth" ++ show d ++ "...")) boundedSearch d c e i) [1 .. ]
     where boundedSearch d c e crt
             | d == 0         = Nothing
             | c crt == True  = Just crt
@@ -41,50 +44,71 @@ iddfs c e i = selectFirstResult (\d -> boundedSearch d c e i) [1 .. ]
 --- for expansion of nodes
 
 expand :: (IProgram, State) -> [(IProgram, State)]
-expand (prog, (mp, fp)) = if hasMetarule prog 
-                          then if isComplete prog 
-                               then []
-                               else zip (specialize prog MEmpty fp) (repeat (mp, fp))
-                          else concat (map create [0 .. (length mp) - 1])
-    where create idx = let progs = specialize prog (mp !! idx) fp in
-                       zip progs (repeat (mp, fp))
-          hasMetarule (IProgram ((Incomplete name MEmpty _ _ _):is) cs) = False
+expand (prog, (mp, fp, cnt)) = if hasMetarule prog
+                               then
+                                   if isComplete prog
+                                   then []
+                                   else zipWith (\(p, cnt, newFP) m -> (p, (m, newFP, cnt))) (specialize prog MEmpty fp cnt) (repeat mp)
+                               else (concat.map create) [0 .. (length mp) - 1]
+    where create idx = let progs = specialize prog (mp !! idx) fp cnt in
+                       zipWith (\(p, cnt, newFP) m -> (p, (m, newFP, cnt))) progs (repeat mp)
+          hasMetarule (IProgram ((Incomplete name MEmpty _ _):is) cs _) = False
           hasMetarule _ = True
 
-specialize :: IProgram -> Metarule -> FuncPool -> [IProgram]
-specialize (IProgram [] cs) mr fp = [IProgram [] cs]
-specialize (IProgram (i:is) cs) mr fp = 
+specialize :: IProgram -> Metarule -> FuncPool -> Int -> [(IProgram, Int, FuncPool)]
+specialize (IProgram [] cs cons) mr fp cnt = [(IProgram [] cs cons, cnt, fp)]
+specialize (IProgram (i:is) cs cons) mr fp cnt = 
     case i of
-        Complete _ _ _ _ _ -> [IProgram is (i:cs)]
-        Incomplete _ _ _ _ _ -> map createIPs (fill i mr fp []) 
-                          where createIPs fun = (IProgram (fun:is) cs)
+        Complete _ _ _ _ -> [(IProgram is (i:cs) cons, cnt, fp)]
+        Incomplete _ _ _ _ -> map createIPs (fill i mr fp [] cnt cons) 
+    where createIPs (fun, cnt, newCons, newFP) = 
+            ((IProgram (fun ++ is) (cs) newCons), cnt, newFP)
+          newIs fun = filter (\f -> (not.isCF) f) fun
+          newCs fun = filter (\f -> isCF f) fun
+          isCF f = 
+              case f of 
+                  Complete _ _ _ _ -> True
+                  Incomplete _ _ _ _ -> False
 
-mrType :: Metarule -> ([HelperType], HelperType)
-mrType COMP = ([Arrow [(TVar (TV "b"))] (TVar (TV "c")), 
-               Arrow [(TVar (TV "a"))] (TVar (TV "b"))],
-               (Arrow [TVar (TV "a")] (TVar (TV "c"))))
-mrType MAP = ([Arrow [TVar (TV "a")] (TVar (TV "b"))],
-              Arrow [TArray (TVar (TV "a"))] (TArray (TVar (TV "b"))))
-mrType FILTER = ([Arrow [TVar (TV "a")] (BaseType "Bool")],
-                 Arrow [TArray (TVar (TV "a"))] (TArray (TVar (TV "a"))))
+mrType :: Metarule -> Int -> ([HelperType], HelperType)
+mrType COMP cnt = ([Arrow [(TVar ("b" ++ (show cnt)))] (TVar ("c" ++ (show cnt))), 
+                    Arrow [(TVar ("a" ++ (show cnt)))] (TVar ("b" ++ (show cnt)))],
+                  (Arrow [TVar ("a" ++ (show cnt))] (TVar ("c" ++ (show cnt)))))
+mrType MAP cnt = ([Arrow [TVar ("a" ++ (show cnt))] (TVar ("b" ++ (show cnt)))],
+                  Arrow [TArray (TVar ("a" ++ (show cnt)))] (TArray (TVar ("b" ++ (show cnt)))))
+mrType FILTER cnt = ([Arrow [TVar ("a" ++ (show cnt))] (BaseType "Bool")],
+                     Arrow [TArray (TVar ("a" ++ (show cnt)))] (TArray (TVar ("a" ++ (show cnt)))))
 
-fill :: IFunction -> Metarule -> FuncPool -> [FOF] -> [IFunction]
-fill (Incomplete name MEmpty ift _ []) mr fp _ = 
+fill :: IFunction -> Metarule -> FuncPool -> [FOF] -> Int -> Constraint -> [([IFunction], Int, Constraint, FuncPool)]
+fill (Incomplete name MEmpty ift []) mr fp _ cnt cons = 
     case newConstraint of
-        Just c -> [Incomplete name mr ift c fPhs]
+        Just c -> [([Incomplete name mr ift fPhs], cnt + 1, c, fp)]
         Nothing -> []
-    where (inputs, output) = mrType mr
-          newConstraint = unifier ift output emptyC
+    where (inputs, output) = mrType mr cnt
+          newConstraint = unifier ift output cons
           fPhs = map (\t -> FEmpty t) inputs
 
-fill (Incomplete name mr ift cons ((FEmpty fType):xs)) _ fp prev = onlyPossible fp
+fill (Incomplete name mr ift ((FEmpty fType):xs)) _ fp prev cnt cons =
+    onlyPossible fp ++ 
+    [([Incomplete name mr ift (prev ++ (FOF ("gen" ++ show cnt):xs)),
+       Incomplete ("gen" ++ show cnt) MEmpty fType []], cnt + 1, cons, fp ++ [("gen" ++ show cnt, fType)])]
     where onlyPossible [] = []
-          onlyPossible ((fn, ft):fs) = 
-            case unifier ft fType cons of
-                Just newC -> (Incomplete name mr ift newC (prev ++ (FOF fn:xs))):(onlyPossible fs)
+          onlyPossible ((fn, ft):fs) =
+            let (corrFT, newCnt) = if "gen" `isPrefixOf` fn 
+                         then (ft, cnt)
+                         else (freshen cnt ft, cnt + 1) 
+            in
+            case unifier fType corrFT cons of
+                Just newC -> 
+                    if "gen" `isPrefixOf` fn && "gen" `isPrefixOf` name 
+                    then 
+                        if (read (drop 3 name) :: Integer) < (read (drop 3 fn) :: Integer)
+                        then ([Incomplete name mr ift (prev ++ (FOF fn:xs))], newCnt, newC, fp):(onlyPossible fs)
+                        else (onlyPossible fs)
+                    else ([Incomplete name mr ift (prev ++ (FOF fn:xs))], newCnt, newC, fp):(onlyPossible fs)
                 Nothing -> onlyPossible fs
 
-fill (Incomplete name mr fType cons (FOF f:xs)) newMr fp prev = 
-    fill (Incomplete name mr fType cons xs) newMr fp (prev ++ [FOF f])
-fill (Incomplete name mr fType cons []) _ fp prev  = [Complete name mr fType cons prev] -- is this ok?
-fill (Complete name m fTyp cons fofs) _ _ _ = [Complete name m fTyp cons fofs]
+fill (Incomplete name mr fType (FOF f:xs)) newMr fp prev cnt cons = 
+    fill (Incomplete name mr fType xs) newMr fp (prev ++ [FOF f]) cnt cons
+fill (Incomplete name mr fType []) _ fp prev cnt cons = [([Complete name mr fType prev], cnt, cons, fp)] -- is this ok?
+fill (Complete name m fTyp fofs) _ fp _ cnt cons = [([Complete name m fTyp fofs], cnt, cons, fp)]

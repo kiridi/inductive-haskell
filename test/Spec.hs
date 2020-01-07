@@ -8,10 +8,11 @@ import Data.Maybe
 import Data.Map
 
 -- Helpers
-initFunc = Incomplete "target" MEmpty (intToInt) emptyC []
-initProg = IProgram [initFunc] []
-intToInt = Arrow [BaseType "Int"] (BaseType "Int")
-intToBool = Arrow [BaseType "Int"] (BaseType "Bool")
+-- initFunc = Incomplete "target" MEmpty (aintToaInt) emptyC []
+-- initProg = IProgram [initFunc] []
+-- aintToaInt = Arrow [TArray (BaseType "Int")] (TArray(BaseType "Int"))
+-- intToInt = Arrow [BaseType "Int"] (BaseType "Int")
+-- intToBool = Arrow [BaseType "Int"] (BaseType "Bool")
 
 -- c1 = (fromList [(TV "a",BaseType "Int"),(TV "c",BaseType "Int")])
 -- c2 = (fromList [(TV "a",BaseType "Int"),(TV "b",BaseType "Int"),(TV "c",BaseType "Int")])
@@ -34,15 +35,25 @@ assert test passStatement failStatement opt = if test
                                           else do putStrLn failStatement
                                                   return opt
 
-testFill :: IO()
-testFill = do
-           comp <- let opt = fill initFunc COMP [("func", intToInt), ("func2", intToInt)] [] in 
-                   assert (opt == [Incomplete "target" COMP intToInt emptyC [FEmpty intToInt, FEmpty intToInt]]) "PASSED: 1" ("FAIL: 1 with " ++ show opt) opt
-           comp1 <- let opt = fill (head comp) MEmpty [("func", intToInt), ("func2", intToInt)] [] in
-                    assert (opt == [Incomplete "target" COMP intToInt emptyC [FOF "func", FEmpty intToInt]]) "PASSED: 2" ("FAIL: 2 with " ++ show opt) opt
-           comp2 <- let opt = fill (head comp1) MEmpty [("func", intToInt), ("func2", intToBool)] [] in
-                    assert (opt == [Incomplete "target" COMP intToInt emptyC [FOF "func", FEmpty intToInt]]) "PASSED: 3" ("FAIL: 3 with " ++ show opt) opt
-           return ()
+-- testFill :: IO()
+-- testFill = do
+--            comp <- let opt = fill initFunc COMP [("func", intToInt), ("func2", intToInt)] [] 0 in 
+--                    assert (opt == [Incomplete "target" COMP intToInt emptyC [FEmpty intToInt, FEmpty intToInt]]) "PASSED: 1" ("FAIL: 1 with " ++ show opt) opt
+--            comp1 <- let opt = fill (head comp) MEmpty [("func", intToInt), ("func2", intToInt)] [] 0 in
+--                     assert (opt == [Incomplete "target" COMP intToInt emptyC [FOF "func", FEmpty intToInt]]) "PASSED: 2" ("FAIL: 2 with " ++ show opt) opt
+--            comp2 <- let opt = fill (head comp1) MEmpty [("func", intToInt), ("func2", intToBool)] [] 0 in
+--                     assert (opt == [Incomplete "target" COMP intToInt emptyC [FOF "func", FEmpty intToInt]]) "PASSED: 3" ("FAIL: 3 with " ++ show opt) opt
+--            return ()
+
+-- testFill :: IO()
+-- testFill = do
+--            comp <- let opt = fill initFunc MAP [("func", intToInt), ("func2", intToBool)] [] 0 in 
+--                    assert (opt == []) "PASSED: 1" ("FAIL: 1 with " ++ show opt) opt
+--            comp1 <- let opt = fill ((head.fst.head) comp) MEmpty [("func", intToInt), ("func2", intToBool)] [] 0 in
+--                     assert (opt == []) "PASSED: 2" ("FAIL: 2 with " ++ show opt) opt
+--            comp2 <- let opt = fill ((head.fst.head) comp1) MEmpty [("func", intToInt), ("func2", intToBool)] [] 0 in
+--                     assert (opt == []) "PASSED: 3" ("FAIL: 3 with " ++ show opt) opt
+--            return ()    
 
 -- testSpecialize :: IO()
 -- testSpecialize = do
@@ -80,10 +91,18 @@ testFill = do
 --          assert ((fst.fromJust) opt == (IProgram [] [Complete "target" COMP [FOF "addOne", FOF "addOne"]])) "PASSED: 10" ("FAIL: 10 with " ++ (show opt)) opt
 --     return ()
 
+-- env = Env (fromList [("*",<function>),("+",<function>),("-",<function>),(":",<function>),("<",<function>),("<=",<function>),("<>",<function>),("=",<function>),(">",<function>),(">=",<function>),("addOne",<function>),("addTwo",<function>),("asd",<function>),("div",<function>),("false",false),("filter",<function>),("head",<function>),("id",<function>),("isOdd",<function>),("map",<function>),("mod",<function>),("neg_target",),("nil",[]),("pos_target",),("reverse",<function>),("reverse1",<function>),("tail",<function>),("true",true),("~",<function>)])
+
+test :: IO ()
+checkIDFS = do
+    _ <- let opt = iddfs (check addOneEnv) expand (IProgram [Incomplete "target" MEmpty []] [], (metarules, ["addOne"])) in
+         assert ((fst.fromJust) opt == (IProgram [] [Complete "target" COMP [FOF "addOne", FOF "addOne"]])) "PASSED: 10" ("FAIL: 10 with " ++ (show opt)) opt
+    return ()
+
 main :: IO ()
 main = do
   putStrLn "Running tests..."
-  testFill
+--   testFill
 --   testSpecialize
 --   testExtend
 --   checkTestSynth

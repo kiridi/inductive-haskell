@@ -204,7 +204,7 @@ dialogm syntax obey init =
       do text <- readFile f; 
          st' <- load_file syntax obey st text; arg_loop st' args
     arg_loop st [] =
-      do read_eval_print syntax obey st; putStrLn "\nBye"
+      do {-read_eval_print syntax obey st;-} putStrLn ""
 
 read_eval_print :: (Show t) => 
     Syntax t a -> (a -> s -> IO s) -> s -> IO ()

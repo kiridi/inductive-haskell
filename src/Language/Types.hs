@@ -3,46 +3,60 @@ module Language.Types where
 import Data.Map as Map hiding (foldr)
 import Data.Maybe
 
-newtype TVar = TV String
-               deriving (Show, Eq, Ord)
-
-data HelperType = TVar TVar
+data HelperType = TVar String
                 | BaseType String
                 | TArray (HelperType)
                 | Arrow [HelperType] (HelperType) 
-                deriving (Show, Eq, Ord)
+                deriving (Show, Eq)
 
-type Constraint = Map TVar (HelperType)
+-- instance (Eq HelperType) where
+--   TVar s1 == TVar s2 = s1 == s2
+--   BaseType t1 == BaseType t2 = t1 == t2
+--   TArray ht1 == TArray ht2 = ht1 == ht2
+--   Arrow ins1 out1 == Arrow ins2 out2 = out2 == out1 && all (\(t1, t2) -> t1 == t2) (zip ins1 ins2)
+
+type Constraint = Map String (HelperType)
 
 emptyC :: Constraint
 emptyC = Map.empty
-
+-- TODO: Whole unifier
 unifier :: HelperType -> HelperType -> Constraint -> Maybe Constraint
 
-unifier (TVar name1) (TVar name2) const =
-  if name1 == name2
-  then Just const
-  else Nothing
+follow (TVar v) const = 
+  case Map.lookup v const of
+    Just (TVar v2) -> follow (TVar v2) const
+    Just (el) -> Just el
+    Nothing -> Nothing
+follow el _ = Just el
 
 unifier (BaseType t1) (BaseType t2) const = 
   if t1 == t2
   then Just const
   else Nothing
 
+unifier (Arrow args1 _) (Arrow args2 _) _
+  | length args1 /= length args2 = Nothing 
+
 unifier (Arrow args1 res1) (Arrow args2 res2) constr =
-  case afterArgsUnif of
+  case unifier res1 res2 constr of
     Nothing -> Nothing
-    (Just c) -> unifier res1 res2 c
-  where afterArgsUnif = foldr unifyArgs (Just constr) (zip args1 args2)
+    (Just c) -> afterArgsUnif c
+  where afterArgsUnif start = foldr unifyArgs (Just start) (zip args1 args2)
         unifyArgs (arg1, arg2) (Just crtConst) = unifier arg1 arg2 crtConst
         unifyArgs _ Nothing = Nothing
 
-unifier (TVar a) t const = 
+unifier (TVar a) (TVar b) const | a == b = Just const
+
+unifier t1 (TArray t2) const | t1 == t2 = Nothing 
+
+unifier (TArray t2) t1 const | t1 == t2 = Nothing 
+
+unifier t (TVar a) const = 
   case Map.lookup a const of
     Just atype -> unifier atype t const
     Nothing -> Just (Map.insert a t const)
 
-unifier t (TVar a) const = 
+unifier (TVar a) t const = 
   case Map.lookup a const of
     Just atype -> unifier atype t const
     Nothing -> Just (Map.insert a t const)
@@ -51,8 +65,17 @@ unifier (TArray t1) (TArray t2) constr = unifier t1 t2 constr
 
 unifier _ _ _ = Nothing
 
-applyConstraints :: HelperType -> Constraint -> HelperType
-applyConstraints (TVar a) constr = fromJust (Map.lookup a constr)
+applyConstraints :: HelperType -> Constraint -> HelperType -- TODO: Needs verification?
+applyConstraints (TVar a) constr = 
+  case Map.lookup a constr of
+    Just t -> t
+    Nothing -> TVar a
 applyConstraints (Arrow args res) constr = Arrow (Prelude.map (\a -> applyConstraints a constr) args) (applyConstraints res constr)
 applyConstraints (TArray ht) constr = TArray (applyConstraints ht constr)
 applyConstraints (BaseType b) _ = BaseType b
+
+freshen :: Int -> HelperType -> HelperType
+freshen id (TVar n) = TVar (n ++ show id)
+freshen id (TArray t) = TArray (freshen id t)
+freshen id (Arrow ins out) = Arrow (Prelude.map (freshen id) ins) (freshen id out)
+freshen id (BaseType s) = BaseType s

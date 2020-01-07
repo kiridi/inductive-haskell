@@ -6,7 +6,8 @@ data Metarule = MEmpty
               | COMP
               | MAP
               | FOLD
-              | FILTER deriving (Eq, Ord, Show)
+              | FILTER
+              deriving (Eq, Ord, Show)
 
 data FOF = FEmpty HelperType
          | FOF String deriving (Eq, Show)

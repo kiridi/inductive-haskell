@@ -25,6 +25,7 @@ dependencies:
 - template-haskell
 - transformers
 - containers
+- mtl
 
 library:
   source-dirs: src
