@@ -5,4 +5,4 @@ The implementation is still a prototype, so code is a bit messy and comments are
 # Running the system
 The only build dependency is __The Haskell Platform__, which will also install the _stack_ build system, used to run the program.
 
-When in the project directory, running the command `stack run input` will synthesize a program based on the input file (relative path). For an example of how the input file should look like, look at the file `test/droplasts.test`. Also, the input is hard coded in the file `Interpreter.hs` (see the definition of `obey (Calculate (Synth ...)))` and modify the initial program and the bk functions that should be used from the input file).
+When in the project directory, running the command `stack run input` will synthesize a program based on the input file (relative path). For an example of how the input file should look like and what the syntax is, look at the file `test/droplasts.test`.

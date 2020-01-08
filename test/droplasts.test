@@ -1,25 +1,30 @@
+val addOne(x @ Int) @ Int = x + 1;;
+
+val addTwo(x @ Int) @ Int = x + 2;;
+
+val isOdd(x @ Int) @ Bool = 
+    if x mod 2 = 0 
+    then false
+    else true;;
+
+rec reverse1(xs@ [Int], ys @ [Int]) @ [Int] = 
+    if xs = nil
+    then ys
+    else reverse1(tail(xs), head(xs):ys);;
+
+val tl(xs @ [a]) @ [a] = if xs = nil then nil else tail(xs);;
+
+val reverse(xs @ [a]) @ [a] = reverse1(xs, nil);;
+
+-- Target program
+--   target = reverse.gen2
+--   gen2 = tl.gen5
+--   gen5 = reverse.gen8
+--   gen8 = map gen10
+--   gen10 = tl.reverse
+
 NEX target (list(list(1,2), list(1,2,3,4))) => list(list(5)) ;;
 NEX target (list(list(1,2,5), list(2))) => list(list(1,2,3,4)) ;;
-
 PEX target (list(list(1,2),list(2,3),list(3,4))) => list(list(1), list(2)) ;;
 PEX target (list(list(5,6), list(6))) => list(list(5)) ;;
-
-val addOne(x) = x + 1;;
-
-val addTwo(x) = x + 2;;
-
-val isOdd(x) = if x mod 2 = 0 
-               then false
-               else true;;
-
-val id(x) = x;;
-
-rec reverse1(xs, ys) = if xs = nil
-                       then ys
-                       else reverse1(tail(xs), head(xs):ys);;
-
-val tl(xs) = if xs = nil then nil else tail(xs);;
-
-val reverse(xs) = reverse1(xs, nil);;
-
-SYNTH target;;
+SYNTH target(xs@[[Int]]) @ [[Int]];;
