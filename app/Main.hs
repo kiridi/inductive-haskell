@@ -1,13 +1,13 @@
 module Main(main) where
 import Language.Interpreter
 import Language.Parsing
-import Language.Syntax
 import Language.FunParser
+import Language.Types
 import Language.Environment
-import PSBuilder
+
+import Search
 import Elements
 import Data.Set
-import Language.Types
 import Data.Maybe
 
 import Text.Printf
@@ -25,4 +25,4 @@ time a = do
 
 main = do
     putStrLn "Starting...\n"
-    time $ dialog funParser obey init_env
+    time $ dialog funParser obey (init_env, empty_env)

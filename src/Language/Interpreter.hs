@@ -6,14 +6,15 @@ import Language.FunParser
 import Language.Environment
 import Language.Types
 import Data.Maybe
-import Control.Exception
 import Data.List hiding (find)
+import Debug.Trace
 
 import Elements
-import PSBuilder
+import Search
 
--- An environment is a map from identifiers to values
-type Env = Environment Value
+type VEnv = Environment Value
+type TEnv = Environment HelperType
+type EEnv = Environment (Example Value)
 
 data Example a = Pos [a] a
                | Neg [a] a
@@ -28,7 +29,7 @@ data Value =
   | PosExs [Example Value]      -- Positive Example
   | NegExs [Example Value]      -- Negative Example
 
-eval :: Expr -> Env -> Value
+eval :: Expr -> VEnv -> Value
 
 eval (Number n) env = IntVal n
 
@@ -54,52 +55,54 @@ apply :: Value -> [Value] -> Value
 apply (Function f) args = f args
 apply _ args = error "applying a non-function"
 
-abstract :: [Ident] -> Expr -> Env -> Value
+abstract :: [Ident] -> Expr -> VEnv -> Value
 abstract xs e env = 
   Function (\args -> eval e (defargs env xs args))
 
-elab :: Defn -> Env -> Env
-elab (Val x e) env = define env x (eval e env)
+elab :: Defn -> VEnv -> VEnv
+elab (Val x _ e) env = define env x (eval e env)
 
-elab (Rec x (Lambda xs e1)) env =
+elab (Rec x _ (Lambda xs e1)) env =
   env' where env' = define env x (abstract xs e1 env')
-elab (Rec x _) env =
+elab (Rec x _ _) env =
   error "RHS of letrec must be a lambda"
 
 elab (PEx f ins out) env = 
-  case env_ex of
+  case maybe_find env ("pos_" ++ f) of
     Nothing           -> define env ("pos_" ++ f) (PosExs [Pos eins eout])
     Just (PosExs exs) -> define env ("pos_" ++ f) (PosExs ((Pos eins eout) : exs))
-  where env_ex = maybe_find env ("pos_" ++ f)
-        eins = map (\ e -> eval e env) ins
+  where eins = map (\ e -> eval e env) ins
         eout = eval out env
 
 elab (NEx f ins out) env = 
-  case env_ex of
+  case maybe_find env ("neg_" ++ f) of
     Nothing           -> define env ("neg_" ++ f) (NegExs [Neg eins eout])
     Just (NegExs exs) -> define env ("neg_" ++ f) (NegExs ((Neg eins eout) : exs))
-  where env_ex = maybe_find env ("neg_" ++ f)
-        eins = map (\ e -> eval e env) ins
+  where eins = map (\ e -> eval e env) ins
         eout = eval out env
 
-ifToDefn :: IFunction -> Defn
-ifToDefn (Complete name mr _ fofs) = 
-  case mr of 
-    COMP -> Val name (Lambda ["x"] 
-                             (Apply (Variable (extractName (fofs!!0))) 
-                                    [(Apply (Variable (extractName (fofs!!1))) 
-                                            [(Variable "x")])]))
-    MAP -> Val name (Lambda ["xs"]
-                            (Apply (Variable "map") [Variable (extractName (fofs!!0)), Variable "xs"]))
-    FILTER -> Val name (Lambda ["xs"]
-                               (Apply (Variable "filter") [Variable (extractName (fofs!!0)), Variable "xs"]))
-    -- FApply -> Val name (Lambda ["x"] -- TODO: variable number of args
-    --                            (Apply (Variable (extractName (fofs!!0)))
-    --                                   [Variable "x"]))
-  where extractName (FOF name) = name
-ifToDefn _ = error "should be complete"
+addSignature :: Defn -> TEnv -> TEnv
+addSignature (Val name typ _) tenv = define tenv name typ
+addSignature (Rec name typ _) tenv = define tenv name typ
+addSignature _ tenv = tenv
 
-checkTarget :: Ident -> [IFunction] -> Env -> Bool
+ifToDefn :: IFunction -> Defn
+ifToDefn (Complete name mr typ fofs) = 
+  case mr of 
+    COMP -> Val name typ (Lambda ["x"] 
+                            (Apply (Variable (getName (fofs!!0))) 
+                              [(Apply (Variable (getName (fofs!!1))) 
+                                [(Variable "x")])]))
+    MAP -> Val name typ (Lambda ["xs"]
+                          (Apply (Variable "map") 
+                            [Variable (getName (fofs!!0)), Variable "xs"]))
+    FILTER -> Val name typ (Lambda ["xs"]
+                             (Apply (Variable "filter") 
+                               [Variable (getName (fofs!!0)), Variable "xs"]))
+  where getName (FOF name) = name
+ifToDefn _ = error "Only complete IFunctions should be translated"
+
+checkTarget :: Ident -> [IFunction] -> VEnv -> Bool
 checkTarget target funcs env = 
   if (res_pos get_pex == True && res_neg get_nex == False)
   then True
@@ -109,30 +112,31 @@ checkTarget target funcs env =
         func name = 
           case find newEnv name of
             Function f -> Function f
-            _ -> error "wtf f"
-        f (Pos ins out) b = (apply (func target) ins == out) && b
-        f _ _ = error "wtf p"
-        g (Neg ins out) b = (apply (func target) ins == out) || b
-        g _ _ = error "wtf n"
-        res_pos (PosExs exs) = foldr f True exs
-        res_neg (NegExs exs) = foldr g False exs
-        newEnv = (foldr (\ifun env' -> elab (ifToDefn ifun) env') env (order funcs)) -- TODO reverse sure? no do topo sort
-        order fs = reverse (sortBy sf fs)
+            _ -> error "Target not in the environment"
+        checkPosEx (Pos ins out) b = (apply (func target) ins == out) && b
+        checkPosEx _ _ = error "Error when checking the positive examples"
+        checkNegEx (Neg ins out) b = (apply (func target) ins == out) || b
+        checkNegEx _ _ = error "Error when checking the negative examples"
+        res_pos (PosExs exs) = foldr checkPosEx True exs
+        res_neg (NegExs exs) = foldr checkNegEx False exs
+        newEnv = (foldr (\ifun env' -> elab (ifToDefn ifun) env') env (order funcs))
+        order fs = sortBy sf fs
         sf (Complete n1 _ _ _) (Complete n2 _ _ _) = 
           if n1 == "target"
-          then GT
+          then LT
           else 
             if n2 == "target"
-            then LT
-            else if (read (drop 3 n1) :: Integer) < (read (drop 3 n2) :: Integer)
             then GT
-            else LT
+            else if (read (drop 3 n1) :: Integer) < (read (drop 3 n2) :: Integer)
+            then LT
+            else GT
 
-init_env :: Env
+init_env :: VEnv
 init_env = 
-  make_env [constant "nil" Nil, 
-            constant "true" (BoolVal True),
-            constant "false" (BoolVal False),
+  make_env [
+    constant "nil" Nil, 
+    constant "true" (BoolVal True),
+    constant "false" (BoolVal False),
     pureprim "+" (\ [IntVal a, IntVal b] -> IntVal (a + b)),
     pureprim "-" (\ [IntVal a, IntVal b] -> IntVal (a - b)),
     pureprim "*" (\ [IntVal a, IntVal b] -> IntVal (a * b)),
@@ -150,7 +154,7 @@ init_env =
     pureprim "head" (\ [Cons h t] -> h),
     pureprim "tail" (\ [Cons h t] -> t),
     pureprim ":" (\ [a, b] -> Cons a b),
-
+    pureprim "list" (\ xs -> foldr Cons Nil xs),
     pureprim "map" (\[Function f, xs] -> mapply f xs),
     pureprim "filter" (\[Function p, xs] -> fapply p xs)]
     where constant x v = (x, v)
@@ -164,6 +168,35 @@ init_env =
             case p [a] of
               BoolVal True -> Cons a (fapply p b)
               BoolVal False -> fapply p b
+
+obey :: Phrase -> (VEnv, TEnv) -> (String, (VEnv, TEnv))
+
+obey (Calculate exp) (venv,tenv) =
+  (print_value (eval exp venv), (venv, tenv))
+
+obey (Define def) (venv,tenv) =
+  let x = def_lhs def in
+  let venv' = elab def venv in
+  let tenv' = addSignature def tenv in
+  (if (isEx def) then "" else print_defn venv' x, (venv', tenv'))
+  where isEx (PEx _ _ _) = True
+        isEx (NEx _ _ _) = True
+        isEx _  = False
+
+obey (Synth name typ) (venv, tenv) = (show prog, (venv, tenv))
+  where Just (prog, _) = iddfs (check venv) expand initProg
+        bkfof = envToList tenv
+        myType = find tenv' name
+        tenv' = define tenv name typ
+        initProg = (IProgram [Incomplete name MEmpty myType []] [] emptyC, (metarules, bkfof, 0))
+
+metarules :: [Metarule]
+metarules = [MAP, COMP, FILTER]
+
+check :: VEnv -> (IProgram, State) -> Bool
+check env (IProgram [] cs constr, state) = isComplete (IProgram [] cs constr) && 
+                                           checkTarget "target" cs env
+check _ _ = False
 
 instance Eq Value where
   IntVal a == IntVal b = a == b
@@ -186,34 +219,3 @@ instance Show Value where
 
   show (PosExs xs) = ""
   show (NegExs xs) = ""
-
-obey :: Phrase -> Env -> (String, Env)
-
-obey (Calculate exp) env =
-  (print_value (eval exp env), env)
-
-obey (Define def) env =
-  let x = def_lhs def in
-  let env' = elab def env in
-  (if (ex_def def) then "NoPrint" else print_defn env' x, env')
-  where ex_def (PEx _ _ _) = True
-        ex_def (NEx _ _ _) = True
-        ex_def _  = False
-
-obey (Synth name) env = ("\n" ++ name ++ " found: \n" ++ show prog, env)
-  where Just (prog, _) = iddfs (check env) expand initProg
-        bkfof = [("addOne", Arrow [BaseType "Int"] (BaseType "Int")), 
-                 ("addTwo", Arrow [BaseType "Int"] (BaseType "Int")),  
-                 ("isOdd", Arrow [BaseType "Int"] (BaseType "Bool")),
-                 ("reverse", Arrow [TArray (TVar "a")] (TArray (TVar "a"))),
-                 ("tl", Arrow [TArray (TVar "a")] (TArray (TVar "a")))]
-        myType = Arrow [TArray (TArray (BaseType "Int"))] (TArray (TArray (BaseType "Int")))
-        initProg = (IProgram [Incomplete name MEmpty myType []] [] emptyC, (metarules, bkfof, 0))
-
-metarules :: [Metarule]
-metarules = [MAP, COMP, FILTER]
-
-check :: Env -> (IProgram, State) -> Bool
-check env (IProgram [] cs constr, state) = isComplete (IProgram [] cs constr) && 
-                                           checkTarget "target" cs env
-check _ _ = False

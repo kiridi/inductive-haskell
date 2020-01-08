@@ -2,6 +2,7 @@ module Language.FunParser(funParser) where
     import Language.Parsing
     import Language.Syntax
     import Data.Char
+    import Language.Types
     
     data Token = 
         IDENT IdKind Ident | NUMBER Integer | STRING String
@@ -11,6 +12,7 @@ module Language.FunParser(funParser) where
       | LBRACE | RBRACE | ARROW | VBAR | DOT | OPEN
       | BADTOK Char
       | PEX | NEX | SYNTH
+      | INT | BOOL | AT
       deriving Eq
       
     data IdKind = 
@@ -32,7 +34,8 @@ module Language.FunParser(funParser) where
           ARROW -> "=>"; VBAR -> "|"; DOT -> "."; OPEN -> "open"; 
           BADTOK c -> [c]; 
 
-          PEX -> "PEX"; NEX -> "NEX"; SYNTH -> "SYNTH"
+          PEX -> "PEX"; NEX -> "NEX"; SYNTH -> "SYNTH"; AT -> "@"; 
+          INT -> "Int"; BOOL -> "Bool" 
     
     kwlookup = 
       make_kwlookup (IDENT ID)
@@ -40,7 +43,8 @@ module Language.FunParser(funParser) where
           ("rec", REC), ("val", VAL), ("lambda", LAMBDA), ("while", WHILE), 
           ("do", DO), ("orelse", ORELSE), ("array", ARRAY), ("open", OPEN),
           ("div", IDENT MULOP "div"), ("mod", IDENT MULOP "mod"), 
-          ("PEX", PEX), ("NEX", NEX), ("SYNTH", SYNTH)]
+          ("PEX", PEX), ("NEX", NEX), ("SYNTH", SYNTH), ("@", AT),
+          ("Int", INT), ("Bool", BOOL)]
     
     lexer =
       do 
@@ -62,6 +66,7 @@ module Language.FunParser(funParser) where
           '!' -> return (IDENT MONOP "!")
           '~' -> return (IDENT MONOP "~")
           ',' -> return COMMA
+          '@' -> return AT
           '<' -> switch [('=', return (IDENT RELOP "<=")),
                             ('>', return (IDENT RELOP "<>"))]
                     (return (IDENT RELOP "<"))
@@ -95,33 +100,41 @@ module Language.FunParser(funParser) where
     p_phrase =
       do e <- p_expr; eat SSEMI; return (Calculate e)
       <+> do d <- p_def; eat SSEMI; return (Define d)
-      <+> do eat SYNTH; name <- p_name; eat SSEMI; return (Synth name)
+      <+> do eat SYNTH; name <- p_name; (_, ins) <- p_fsts; eat AT; out <- p_type; eat SSEMI; return (Synth name (Arrow ins out))
     
     -- {\syn _def_ \arrow\ "val" _eqn_ \orr\ "rec" _eqn_ \orr\ "array" _name_ "[" _expr_ "]" \orr\ "open" _expr_}
     p_def = 
-      do eat VAL; (x, e) <- p_eqn; return (Val x e)
-      <+> do eat REC; (x, e) <- p_eqn; return (Rec x e)
+      do eat VAL; (x, t, e) <- p_eqn; return (Val x t e) 
+      <+> do eat REC; (x, t, e) <- p_eqn; return (Rec x t e)
       <+> do eat PEX; ident <- p_name; ins <- p_actuals; eat ARROW; out <- p_expr; return (PEx ident ins out)
       <+> do eat NEX; ident <- p_name; ins <- p_actuals; eat ARROW; out <- p_expr; return (NEx ident ins out)
     
     -- {\syn _eqn_ \arrow\ _name_ "=" _expr_ \orr\ _name_ _formals_ "=" _expr_}
     p_eqn =
-      do x <- p_name; eat EQUAL; e <- p_expr; return (x, e)
-      <+> do x <- p_name; xs <- p_formals; eat EQUAL; e <- p_expr; return (x, Lambda xs e)
+      do x <- p_name; eat AT; t <- p_type; eat EQUAL; e <- p_expr; return (x, t, e)
+      <+> do x <- p_name; (xs, ins) <- p_fsts; eat AT; out <- p_type; eat EQUAL; e <- p_expr; return (x, Arrow ins out, Lambda xs e)
     
-    -- {\syn _formals_ \arrow\ "(" \[ _ident_ \{ "," _ident_ \} \] ")"}
+    p_type =
+      do eat INT; return (BaseType "Int") 
+      <+> do eat BOOL; return (BaseType "Bool")
+      <+> do x <- p_name; return (TVar x)
+      <+> do eat BRA; t <- p_type; eat KET; return (TArray t)
+      <+> do eat LPAR; ins <- p_list0 p_type COMMA; eat RPAR; eat ARROW; out <- p_type; return (Arrow ins out)
+
+    p_var =
+      do n <- p_name; eat AT; t <- p_type; return (n, t)
+
+    p_fsts = 
+      do eat LPAR; xs <- p_list0 p_var COMMA; eat RPAR; return (unzip xs)
+    
     p_formals = 
       do eat LPAR; xs <- p_list0 p_name COMMA; eat RPAR; return xs
-    
-    -- {\syn expr \arrow\ "let" _def_ "in" _expr_ \orr\ "lambda" _formals_ _expr_} 
-    -- {\syn \qquad\qquad\qquad \orr\ "fix" "(" _ident_ ")" _expr_ \orr\ _sequence_}
+
     p_expr = 
       do eat LET; d <- p_def; eat IN; e1 <- p_expr; return (Let d e1)
       <+> do eat LAMBDA; xs <- p_formals; e1 <- p_expr; return (Lambda xs e1)
       <+> p_cond
     
-    -- {\syn _cond_ \arrow\ "if" _cond_ "then" _cond_ "else" _cond_}
-    -- {\syn\qquad\qquad\qquad \orr\ "while" _cond_ "do" _cond_ \orr\ _term7_}
     p_cond = 
       do eat IF; e1 <- p_cond; eat THEN; e2 <- p_cond;
          eat ELSE; e3 <- p_cond; return (If e1 e2 e3)
@@ -159,14 +172,12 @@ module Language.FunParser(funParser) where
                         return (mk w e1 e2)
           <+> return e1
     
-    -- {\syn _term1_ \arrow\ _monop_ _term1_ \orr\ "*" _term1_ \orr\ "\&" _term1_ \orr\ _term0_}
     p_term1 =
       do w <- p_monop; e <- p_term1; return (Apply (Variable w) [e])
       <+> p_term0
     
     p_monop = p_ident MONOP <+> (do eat MINUS; return "~");
     
-    -- | primary { actuals | DOT ident } 
     p_term0 =
       do e0 <- p_primary; p_qualifiers e0
       where
@@ -174,25 +185,18 @@ module Language.FunParser(funParser) where
           do aps <- p_actuals; p_qualifiers (Apply e1 aps)
           <+> return e1
     
-    -- actuals ::= ( [ expr { , expr } ] )
     p_actuals =
       do eat LPAR; aps <- p_list0 p_expr COMMA; eat RPAR; return aps
     
-    -- {\syn _primary_ \arrow\ _number_ \orr\ _name_ \orr\ _string_ \orr\ "(" _expr_ ")"}
-    -- {\syn\qquad\qquad\qquad \orr\ "[" \[ _expr_ \{ "," _expr_ \} \] "]"}
-    -- {\syn\qquad\qquad\qquad \orr\ "\verb/{/" _base_ \[ _binding_ \{ "," _binding_ \} \] "\verb/}/"}
-    -- {\syn\qquad\qquad\qquad \orr\ _name_ "[" _expr_ "]"}
     p_primary =
       do n <- p_number; return (Number n)
       <+> do x <- p_name; return (Variable x)
       <+> do s <- p_string; return (Literal s)
       <+> do eat LPAR; e <- p_expr; eat RPAR; return e
     
-    -- {\syn _base_ \arrow\ \[ _expr_ "\verb/|/" \]}
     p_base =
       (do e <- p_expr; eat VBAR; return e) <+> return Empty
     
-    -- {\syn _binding_ \arrow\ _name_ "=>" _expr_}
     p_binding =
       do x <- p_name; eat ARROW; e <- p_expr; return (x, e)
     
@@ -202,7 +206,6 @@ module Language.FunParser(funParser) where
     p_string =
       do t <- scan; case t of STRING s -> return s; _ -> p_fail
     
-    -- {\syn _name_ \arrow\ _ident_ \orr\ "(" _op_ ")"}
     p_name = p_ident ID <+> (do eat LPAR; x <- p_op; eat RPAR; return x)
     
     p_op =

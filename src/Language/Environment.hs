@@ -1,5 +1,5 @@
 module Language.Environment(Environment, empty_env, find, maybe_find,
-    define, defargs, make_env, names, within) where
+    define, defargs, make_env, names, within, envToList) where
 
 import qualified Data.Map as Map
 
@@ -37,3 +37,6 @@ names (Env m) = Map.keys m
 
 within :: Environment v -> Environment v -> Environment v
 within (Env m1) (Env m2) = Env (Map.union m2 m1)
+
+envToList :: Environment v -> [(Ident, v)]
+envToList (Env e) = Map.toList e

@@ -1,4 +1,4 @@
-module PSBuilder where
+module Search where
 
 import Elements
 import Data.List
@@ -28,7 +28,7 @@ selectFirstResult select (x:xs) =
         _ -> select x 
 
 iddfs :: (a -> Bool) -> (a -> [a]) -> a -> Maybe a
-iddfs c e i = selectFirstResult (\d -> (trace ("Searching at depth" ++ show d ++ "...")) boundedSearch d c e i) [1 .. ]
+iddfs c e i = selectFirstResult (\d -> (trace ("Searching at depth " ++ show d ++ "...")) boundedSearch d c e i) [1 .. ]
     where boundedSearch d c e crt
             | d == 0         = Nothing
             | c crt == True  = Just crt
@@ -71,6 +71,7 @@ mrType MAP cnt = ([Arrow [TVar ("a" ++ (show cnt))] (TVar ("b" ++ (show cnt)))],
                   Arrow [TArray (TVar ("a" ++ (show cnt)))] (TArray (TVar ("b" ++ (show cnt)))))
 mrType FILTER cnt = ([Arrow [TVar ("a" ++ (show cnt))] (BaseType "Bool")],
                      Arrow [TArray (TVar ("a" ++ (show cnt)))] (TArray (TVar ("a" ++ (show cnt)))))
+
 
 fill :: IFunction -> Metarule -> FuncPool -> [FOF] -> Int -> Constraint -> [([IFunction], Int, Constraint, FuncPool)]
 fill (Incomplete name MEmpty ift []) mr fp _ cnt cons = 
