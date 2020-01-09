@@ -5,14 +5,14 @@ module Language.FunParser(funParser) where
     import Language.Types
     
     data Token = 
-        IDENT IdKind Ident | NUMBER Integer | STRING String
+        IDENT IdKind Ident | NUMBER Integer | CHARACTER Char
       | LPAR | RPAR | COMMA | EQUAL | ASSIGN | SEMI | SSEMI
       | IF | THEN | ELSE | LET | REC | VAL | LAMBDA | IN | WHILE | DO
       | ORELSE | PIPE | MINUS | STAR | AMPER | ARRAY | BRA | KET 
       | LBRACE | RBRACE | ARROW | VBAR | DOT | OPEN
       | BADTOK Char
       | PEX | NEX | SYNTH
-      | INT | BOOL | AT
+      | INT | BOOL | CHAR | AT
       deriving Eq
       
     data IdKind = 
@@ -23,7 +23,7 @@ module Language.FunParser(funParser) where
       show t = 
         case t of 
           IDENT k x -> show x; NUMBER n -> show n; 
-          STRING s -> "\"" ++ s ++ "\""
+          CHARACTER c -> "\'" ++ [c] ++ "\'"
           LPAR -> "("; RPAR -> ")"; COMMA -> ","
           EQUAL -> "="; SEMI -> ";"; SSEMI -> ";;"; ASSIGN -> ":="
           IF -> "if"; THEN -> "then"; ELSE -> "else"; LET -> "let"
@@ -35,7 +35,7 @@ module Language.FunParser(funParser) where
           BADTOK c -> [c]; 
 
           PEX -> "PEX"; NEX -> "NEX"; SYNTH -> "SYNTH"; AT -> "@"; 
-          INT -> "Int"; BOOL -> "Bool" 
+          INT -> "Int"; BOOL -> "Bool" ; CHAR -> "Char"
     
     kwlookup = 
       make_kwlookup (IDENT ID)
@@ -44,7 +44,7 @@ module Language.FunParser(funParser) where
           ("do", DO), ("orelse", ORELSE), ("array", ARRAY), ("open", OPEN),
           ("div", IDENT MULOP "div"), ("mod", IDENT MULOP "mod"), 
           ("PEX", PEX), ("NEX", NEX), ("SYNTH", SYNTH), ("@", AT),
-          ("Int", INT), ("Bool", BOOL)]
+          ("Int", INT), ("Bool", BOOL), ("Char", CHAR)]
     
     lexer =
       do 
@@ -56,8 +56,8 @@ module Language.FunParser(funParser) where
               return (kwlookup (c:s))
           _ | isDigit c ->
             do s <- star isDigit; return (NUMBER (read (c:s)))
-          '"' ->
-            do s <- star (/= '"'); nextch; return (STRING s)
+          '\'' ->
+            do c <- nextch; nextch; return (CHARACTER c)
           '=' -> switch [('>', return ARROW)] (return EQUAL)
           '+' -> return (IDENT ADDOP "+")
           '-' -> switch [('-', do scanComment; lexer)] (return MINUS)
@@ -118,6 +118,7 @@ module Language.FunParser(funParser) where
     p_type =
       do eat INT; return (BaseType "Int") 
       <+> do eat BOOL; return (BaseType "Bool")
+      <+> do eat CHAR; return (BaseType "Char")
       <+> do x <- p_name; return (TVar x)
       <+> do eat BRA; t <- p_type; eat KET; return (TArray t)
       <+> do eat LPAR; ins <- p_list0 p_type COMMA; eat RPAR; eat ARROW; out <- p_type; return (Arrow ins out)
@@ -192,7 +193,7 @@ module Language.FunParser(funParser) where
     p_primary =
       do n <- p_number; return (Number n)
       <+> do x <- p_name; return (Variable x)
-      <+> do s <- p_string; return (Literal s)
+      <+> do c <- p_char; return (Character c)
       <+> do eat LPAR; e <- p_expr; eat RPAR; return e
     
     p_base =
@@ -204,8 +205,8 @@ module Language.FunParser(funParser) where
     p_number =
       do t <- scan; case t of NUMBER n -> return n; _ -> p_fail
     
-    p_string =
-      do t <- scan; case t of STRING s -> return s; _ -> p_fail
+    p_char =
+      do t <- scan; case t of CHARACTER c -> return c; _ -> p_fail
     
     p_name = p_ident ID <+> (do eat LPAR; x <- p_op; eat RPAR; return x)
     

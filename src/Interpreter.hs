@@ -6,6 +6,7 @@ import Language.FunParser
 import Language.Environment
 import Language.Types
 import Data.Maybe
+import Data.Char
 import Data.List hiding (find)
 import Debug.Trace
 
@@ -23,6 +24,8 @@ data Example a = Pos [a] a
 data Value =
     IntVal Integer              -- Integers
   | BoolVal Bool                -- Booleans
+  | CharVal Char                -- Characters
+  | StringVal String            -- Strings
   | Function ([Value] -> Value) -- Functions
   | Nil                         -- Empty list
   | Cons Value Value            -- Non-empty lists
@@ -30,6 +33,8 @@ data Value =
 eval :: Expr -> VEnv -> Value
 
 eval (Number n) env = IntVal n
+
+eval (Character c) env = CharVal c
 
 eval (Variable x) env = find env x
 
@@ -152,6 +157,10 @@ init_env =
     pureprim "head" (\ [Cons h t] -> h),
     pureprim "tail" (\ [Cons h t] -> t),
     pureprim ":" (\ [a, b] -> Cons a b),
+    pureprim "isAlpha" (\ [CharVal a] -> BoolVal (isAlpha a)),
+    pureprim "isLowerCase" (\ [CharVal a] -> BoolVal (isLower a)),
+    pureprim "isUpperCase" (\ [CharVal a] -> BoolVal (isUpper a)),
+    pureprim "isDigit" (\ [CharVal a] -> BoolVal (isDigit a)),
     pureprim "list" (\ xs -> foldr Cons Nil xs),
     pureprim "map" (\[Function f, xs] -> mapply f xs),
     pureprim "filter" (\[Function p, xs] -> fapply p xs)]
@@ -201,6 +210,7 @@ check _ _ _ = False
 instance Eq Value where
   IntVal a == IntVal b = a == b
   BoolVal a == BoolVal b = a == b
+  CharVal a == CharVal b = a == b
   Nil == Nil = True
   Cons h1 t1 == Cons h2 t2 = (h1 == h2) && (t1 == t2)
   Function _ == Function _ = error "can't compare functions"
@@ -209,6 +219,7 @@ instance Eq Value where
 instance Show Value where
   show (IntVal n) = show n
   show (BoolVal b) = if b then "true" else "false"
+  show (CharVal c) = show c
   show Nil = "[]"
   show (Cons h t) = "[" ++ show h ++ shtail t ++ "]"
     where 

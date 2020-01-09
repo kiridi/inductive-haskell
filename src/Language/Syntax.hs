@@ -9,13 +9,13 @@ data Phrase = Calculate Expr
             deriving Show
 
 data Expr = Number Integer   
+          | Character Char
           | Variable Ident  
           | Apply Expr [Expr]    
           | If Expr Expr Expr  
           | Lambda [Ident] Expr 
           | Let Defn Expr    
-          | Empty          
-          | Literal String 
+          | Empty
           deriving Show
 
 data Defn = Val Ident HelperType Expr
