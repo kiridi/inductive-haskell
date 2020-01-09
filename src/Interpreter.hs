@@ -1,4 +1,4 @@
-module Language.Interpreter where
+module Interpreter where
 
 import Language.Parsing
 import Language.Syntax
@@ -14,7 +14,7 @@ import Search
 
 type VEnv = Environment Value
 type TEnv = Environment HelperType
-type EEnv = Environment (Example Value)
+type EEnv = Environment ([Example Value], [Example Value])
 
 data Example a = Pos [a] a
                | Neg [a] a
@@ -26,8 +26,6 @@ data Value =
   | Function ([Value] -> Value) -- Functions
   | Nil                         -- Empty list
   | Cons Value Value            -- Non-empty lists
-  | PosExs [Example Value]      -- Positive Example
-  | NegExs [Example Value]      -- Negative Example
 
 eval :: Expr -> VEnv -> Value
 
@@ -67,24 +65,25 @@ elab (Rec x _ (Lambda xs e1)) env =
 elab (Rec x _ _) env =
   error "RHS of letrec must be a lambda"
 
-elab (PEx f ins out) env = 
-  case maybe_find env ("pos_" ++ f) of
-    Nothing           -> define env ("pos_" ++ f) (PosExs [Pos eins eout])
-    Just (PosExs exs) -> define env ("pos_" ++ f) (PosExs ((Pos eins eout) : exs))
-  where eins = map (\ e -> eval e env) ins
-        eout = eval out env
-
-elab (NEx f ins out) env = 
-  case maybe_find env ("neg_" ++ f) of
-    Nothing           -> define env ("neg_" ++ f) (NegExs [Neg eins eout])
-    Just (NegExs exs) -> define env ("neg_" ++ f) (NegExs ((Neg eins eout) : exs))
-  where eins = map (\ e -> eval e env) ins
-        eout = eval out env
-
 addSignature :: Defn -> TEnv -> TEnv
 addSignature (Val name typ _) tenv = define tenv name typ
 addSignature (Rec name typ _) tenv = define tenv name typ
 addSignature _ tenv = tenv
+
+addExample :: Defn -> VEnv -> EEnv -> EEnv
+addExample (PEx name ins out) venv eenv = 
+  case maybe_find eenv name of
+    Nothing           -> define eenv name ([Pos eins eout], [])
+    Just (pos, neg) -> define eenv name ((Pos eins eout) : pos, neg)
+  where eins = map (\ e -> eval e venv) ins
+        eout = eval out venv
+
+addExample (NEx name ins out) venv eenv = 
+  case maybe_find eenv name of
+    Nothing           -> define eenv name ([], [Neg eins eout])
+    Just (pos, neg) -> define eenv name (pos, (Neg eins eout) : neg)
+  where eins = map (\ e -> eval e venv) ins
+        eout = eval out venv
 
 ifToDefn :: IFunction -> Defn
 ifToDefn (Complete name mr typ fofs) = 
@@ -102,13 +101,12 @@ ifToDefn (Complete name mr typ fofs) =
   where getName (FOF name) = name
 ifToDefn _ = error "Only complete IFunctions should be translated"
 
-checkTarget :: Ident -> [IFunction] -> VEnv -> Bool
-checkTarget target funcs env = 
+checkTarget :: Ident -> [IFunction] -> VEnv-> EEnv -> Bool
+checkTarget target funcs venv eenv = 
   if (res_pos get_pex == True && res_neg get_nex == False)
   then True
   else False
-  where get_pex = find env ("pos_" ++ target)
-        get_nex = find env ("neg_" ++ target)
+  where (get_pex, get_nex) = find eenv target
         func name = 
           case find newEnv name of
             Function f -> Function f
@@ -117,9 +115,9 @@ checkTarget target funcs env =
         checkPosEx _ _ = error "Error when checking the positive examples"
         checkNegEx (Neg ins out) b = (apply (func target) ins == out) || b
         checkNegEx _ _ = error "Error when checking the negative examples"
-        res_pos (PosExs exs) = foldr checkPosEx True exs
-        res_neg (NegExs exs) = foldr checkNegEx False exs
-        newEnv = (foldr (\ifun env' -> elab (ifToDefn ifun) env') env (order funcs))
+        res_pos exs = foldr checkPosEx True exs
+        res_neg exs = foldr checkNegEx False exs
+        newEnv = (foldr (\ifun env' -> elab (ifToDefn ifun) env') venv (order funcs))
         order fs = sortBy sf fs
         sf (Complete n1 _ _ _) (Complete n2 _ _ _) = 
           if n1 == "target"
@@ -169,34 +167,36 @@ init_env =
               BoolVal True -> Cons a (fapply p b)
               BoolVal False -> fapply p b
 
-obey :: Phrase -> (VEnv, TEnv) -> (String, (VEnv, TEnv))
+obey :: Phrase -> (VEnv, TEnv, EEnv) -> (String, (VEnv, TEnv, EEnv))
 
-obey (Calculate exp) (venv,tenv) =
-  (print_value (eval exp venv), (venv, tenv))
+obey (Calculate exp) (venv, tenv, eenv) =
+  (print_value (eval exp venv), (venv, tenv, eenv))
 
-obey (Define def) (venv,tenv) =
+obey (Define def) (venv, tenv, eenv) =
   let x = def_lhs def in
-  let venv' = elab def venv in
-  let tenv' = addSignature def tenv in
-  (if (isEx def) then "" else print_defn venv' x, (venv', tenv'))
+  let venv' = if isEx def then venv else elab def venv in
+  let tenv' = if isEx def then tenv else addSignature def tenv in
+  let eenv' = if isEx def then addExample def venv eenv else eenv in
+  (if (isEx def) then "" else print_defn venv' x, (venv', tenv', eenv'))
   where isEx (PEx _ _ _) = True
         isEx (NEx _ _ _) = True
         isEx _  = False
 
-obey (Synth name typ) (venv, tenv) = (show prog, (venv, tenv))
-  where Just (prog, _) = iddfs (check venv) expand initProg
+obey (Synth name typ) (venv, tenv, eenv) = (show prog, (venv, tenv, eenv))
+  where Just (prog, _) = iddfs (check venv eenv) expand initProg
         bkfof = envToList tenv
         myType = find tenv' name
         tenv' = define tenv name typ
-        initProg = (IProgram [Incomplete name MEmpty myType []] [] emptyC, (metarules, bkfof, 0))
+        initProg = (IProgram [Incomplete name MEmpty myType []] [] emptyC, 
+                    (metarules, bkfof, 0))
 
 metarules :: [Metarule]
 metarules = [MAP, COMP, FILTER]
 
-check :: VEnv -> (IProgram, State) -> Bool
-check env (IProgram [] cs constr, state) = isComplete (IProgram [] cs constr) && 
-                                           checkTarget "target" cs env
-check _ _ = False
+check :: VEnv -> EEnv -> (IProgram, State) -> Bool
+check venv eenv (IProgram [] cs constr, state) = isComplete (IProgram [] cs constr) && 
+                                           checkTarget "target" cs venv eenv
+check _ _ _ = False
 
 instance Eq Value where
   IntVal a == IntVal b = a == b
@@ -216,6 +216,3 @@ instance Show Value where
       shtail (Cons h t) = ", " ++ show h ++ shtail t
       shtail x = " . " ++ show x
   show (Function _) = "<function>"
-
-  show (PosExs xs) = ""
-  show (NegExs xs) = ""

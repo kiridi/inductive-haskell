@@ -1,5 +1,4 @@
 module Main(main) where
-import Language.Interpreter
 import Language.Parsing
 import Language.FunParser
 import Language.Types
@@ -7,6 +6,7 @@ import Language.Environment
 
 import Search
 import Elements
+import Interpreter
 import Data.Set
 import Data.Maybe
 
@@ -25,4 +25,4 @@ time a = do
 
 main = do
     putStrLn "Starting...\n"
-    time $ dialog funParser obey (init_env, empty_env)
+    time $ dialog funParser obey (init_env, empty_env, empty_env)
