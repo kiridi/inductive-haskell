@@ -26,6 +26,7 @@ dependencies:
 - transformers
 - containers
 - mtl
+- unix
 
 library:
   source-dirs: src

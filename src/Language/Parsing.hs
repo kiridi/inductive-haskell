@@ -1,10 +1,10 @@
 {-# LANGUAGE Rank2Types #-}
 
 module Language.Parsing(nextch, switch, star, incln, make_kwlookup,
-    scan, eat, (<+>), p_fail, p_list0, p_list,
-    print_value, print_defn, primwrap,
-    dialog, dialogm, printStrLn, showlist, joinwith,
-  Parser, Syntax) where
+		scan, eat, (<+>), p_fail, p_list0, p_list,
+		print_value, print_defn, primwrap,
+		dialog, dialogm, printStrLn, showlist, joinwith,
+		Parser, Syntax) where
 
 import Language.Environment
 import qualified Data.Map as Map
@@ -14,10 +14,10 @@ import qualified Control.Concurrent
 import qualified System.Environment
 import System.IO(stdout, stderr, hPutStrLn, hFlush)
 import System.IO.Unsafe(unsafePerformIO)
-import GHC.ConsoleHandler(installHandler, Handler(Catch))
+import System.Posix(installHandler, sigINT, Handler(Catch))
 import Control.Applicative(Applicative(..))
 import Control.Monad(liftM, ap)
-    
+	
 type LineNumber = Int
 
 data LexState = MkLexState String LineNumber
@@ -39,7 +39,7 @@ instance Monad Lexer where
     MkLexer (\ st -> 
       case runLexer m st of 
         Just (x, st') -> runLexer (f (token_of x)) st'
-        Nothing -> Nothing)
+	Nothing -> Nothing)
 
 peekch :: Lexer Char
 peekch = MkLexer g 
@@ -78,7 +78,7 @@ lex_string lexer n s = loop (MkLexState s n)
     loop st =
       case runLexer lexer st of
         Just (x, st') -> x : loop st'
-        Nothing -> []
+	Nothing -> []
 
 make_kwlookup :: (String -> t) -> [(String, t)] -> String -> t
 make_kwlookup deflt table =
@@ -121,9 +121,9 @@ commit (MkLexBuf n ll rr nmax) = MkLexBuf 0 [] rr 0
 errtok :: LexBuf t -> Int
 errtok (MkLexBuf _ _ _ nmax) = nmax-1
 
-data Parser t a = 
+newtype Parser t a = 
   MkParser (forall w . 
-    LexBuf t -> SCont t w a -> FCont t w -> Result t w)
+    LexBuf t -> SCont t w a -> FCont t w -> MCont t w -> Result t w)
 
 data Result t w = 
     Success w (LexBuf t)
@@ -134,28 +134,30 @@ type SCont t w a = a -> LexBuf t -> Result t w
 
 type FCont t w = LexBuf t -> Result t w
 
+type MCont t w = ([LexTok t] -> Result t w) -> Result t w
+
 callParser (MkParser f) = f
 
 runParser :: Parser t a -> LexBuf t -> Result t a
-runParser p buf = callParser p buf Success Failure
+runParser p buf = callParser p buf Success Failure More
 
 instance Monad (Parser t) where
   return x = 
-    MkParser (\ buf ks kf -> ks x buf)
+    MkParser (\ buf ks kf km -> ks x buf)
 
   p >>= f = 
-    MkParser (\ buf ks kf ->
+    MkParser (\ buf ks kf km ->
       callParser p buf (\ x buf' ->
-        callParser (f x) buf' ks kf) kf)
+        callParser (f x) buf' ks kf km) kf km)
 
 p_fail :: Parser t a
-p_fail = MkParser (\ buf ks kf -> kf buf)
+p_fail = MkParser (\ buf ks kf km -> kf buf)
 
 scan :: Parser t t
 scan = 
-  MkParser (\ buf ks kf ->
+  MkParser (\ buf ks kf km ->
     if emptyb buf then 
-      More (\ toks -> callParser scan (addtoks buf toks) ks kf)
+      km (\ toks -> callParser scan (addtoks buf toks) ks kf km)
     else 
       ks (token_of (peekb buf)) (forward buf))
 
@@ -163,10 +165,10 @@ infixr 5 <+>
 
 (<+>) :: Parser t a -> Parser t a -> Parser t a
 p <+> q =
-  MkParser (\ buf ks kf -> 
+  MkParser (\ buf ks kf km -> 
     let n = bufpos buf in
     callParser p buf ks
-      (\ buf' -> callParser q (rewind n buf') ks kf))
+      (\ buf' -> callParser q (rewind n buf') ks kf km) km)
 
 eat :: Eq t => t -> Parser t t
 eat x = do y <- scan; if x == y then return y else p_fail
@@ -202,58 +204,58 @@ dialogm syntax obey init =
       do st' <- load_file syntax obey st exp; return ()
     arg_loop st (f : args) = 
       do text <- readFile f; 
-         st' <- load_file syntax obey st text; arg_loop st' args
+		st' <- load_file syntax obey st text; arg_loop st' args
     arg_loop st [] =
-      do {-read_eval_print syntax obey st;-} putStrLn ""
+      do {- read_eval_print syntax obey st;-} putStrLn ""
 
 read_eval_print :: (Show t) => 
-    Syntax t a -> (a -> s -> IO s) -> s -> IO ()
+	Syntax t a -> (a -> s -> IO s) -> s -> IO ()
 read_eval_print (lexer, parser) obey st0 = listen st0
   where
     listen st = 
       let parse = runParser parser (initbuf []) in
       do 
         trap_interrupts; 
-        stz <- execute (loop 1 parse) st (Just st)
+	stz <- execute (loop 1 parse) st (Just st)
         case stz of
-          Just st' -> listen st'; Nothing -> return ()  
+	  Just st' -> listen st'; Nothing -> return ()  
 
     loop n result st =
       case result of
-          Success x _ ->
-        -- Recognized a phrase: execute it
-            do st' <- obey x st; return (Just st')
-          Failure buf' ->
-        -- A syntax error was found: print it and start again
-            do hPutStrLn stderr (syntax_error buf'); return (Just st)
-          More k ->
-            do
-              line <- readline (if n == 1 then ">>> " else "... ")
-              case line of
-                Nothing -> 
-                  -- We got EOF at the prompt
-                  return Nothing
-                Just s ->
-                  -- We got a line: resume parsing
-                  loop (n+1) (k (lex_string lexer n s)) st
+      	Success x _ ->
+  	  -- Recognized a phrase: execute it
+	  do st' <- obey x st; return (Just st')
+	Failure buf' ->
+	  -- A syntax error was found: print it and start again
+	  do hPutStrLn stderr (syntax_error buf'); return (Just st)
+	More k ->
+	  do
+            line <- readline (if n == 1 then ">>> " else "... ")
+            case line of
+              Nothing -> 
+                -- We got EOF at the prompt
+                return Nothing
+              Just s ->
+                -- We got a line: resume parsing
+                loop (n+1) (k (lex_string lexer n s)) st
 
 load_file :: (Show t) => 
-    Syntax t a -> (a -> s -> IO s) -> s -> String -> IO s
+	Syntax t a -> (a -> s -> IO s) -> s -> String -> IO s
 load_file (lexer, parser) obey st0 text =
   loop (initbuf (lex_string lexer 1 text)) st0
   where
     loop buf st =
       if emptyb buf then
         -- End of file
-          return st 
+      	return st 
       else
-        case runParser parser buf of
-          Success x buf' ->
-            do st' <- execute (obey x) st st; loop (commit buf') st'
-          Failure buf' ->
-            do hPutStrLn stderr (syntax_error buf'); return st
-          More _ ->
-            do hPutStrLn stderr "Unexpected end of file"; return st
+	case runParser parser buf of
+	  Success x buf' ->
+ 	    do st' <- execute (obey x) st st; loop (commit buf') st'
+	  Failure buf' ->
+	    do hPutStrLn stderr (syntax_error buf'); return st
+	  More _ ->
+	    do hPutStrLn stderr "Unexpected end of file"; return st
 
 syntax_error :: Show t => LexBuf t -> String
 syntax_error buf =
@@ -269,10 +271,10 @@ execute g x dflt =
 trap_interrupts :: IO ()
 trap_interrupts =
   do
-    thr <- Control.Concurrent.myThreadId; --semi-colon important here
-    GHC.ConsoleHandler.installHandler
-      (Catch (\ e -> Control.Exception.throwTo thr 
-      (Control.Exception.ErrorCall "interrupted")))
+    thr <- Control.Concurrent.myThreadId
+    System.Posix.installHandler sigINT 
+      (Catch (Control.Exception.throwTo thr 
+		(Control.Exception.ErrorCall "interrupted"))) Nothing
     return ()
 
 readline :: String -> IO (Maybe String)
@@ -289,10 +291,9 @@ print_value v = (\ v -> "--> " ++ show v) $! v
 
 print_defn :: Show d => Environment d -> String -> String
 print_defn env x = 
-  (\ v -> "First order function -- " ++ x ++ " -- added to BK ") $! (find env x)
+  (\ v -> "--- " ++ x ++ " = " ++ show v) $! (find env x)
 
 printStrLn :: String -> IO ()
-printStrLn "NoPrint" = putStr ""
 printStrLn "" = putChar '\n'
 printStrLn (c:s) = do putChar c; hFlush stdout; printStrLn s
 
@@ -304,7 +305,7 @@ primwrap prim f args =
     match_fail :: Control.Exception.PatternMatchFail -> b
     match_fail e = 
       error ("bad arguments to primitive " ++ prim ++ ": " 
-                        ++ showlist args)
+						++ showlist args)
 
 showlist :: Show a => [a] -> String
 showlist = joinwith ", " . map show

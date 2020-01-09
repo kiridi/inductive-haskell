@@ -87,6 +87,7 @@ module Language.FunParser(funParser) where
           ' ' -> lexer
           '\t' -> lexer 
           '\n' -> do incln; lexer
+          '\r' -> do incln; lexer
           _ -> return (BADTOK c)
                   
     scanComment =
