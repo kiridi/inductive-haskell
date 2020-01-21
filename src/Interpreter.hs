@@ -196,15 +196,15 @@ obey (Synth name typ) (venv, tenv, eenv) = (show prog, (venv, tenv, eenv))
         bkfof = envToList tenv
         myType = find tenv' name
         tenv' = define tenv name typ
-        initProg = (IProgram [Incomplete name MEmpty myType []] [] emptyC, 
+        initProg = (IProgram [Incomplete name MEmpty myType []] [], 
                     (metarules, bkfof, 0))
 
 metarules :: [Metarule]
 metarules = [MAP, COMP, FILTER]
 
 check :: VEnv -> EEnv -> (IProgram, State) -> Bool
-check venv eenv (IProgram [] cs constr, state) = isComplete (IProgram [] cs constr) && 
-                                           checkTarget "target" cs venv eenv
+check venv eenv (IProgram [] cs, state) = isComplete (IProgram [] cs) && 
+                                          checkTarget "target" cs venv eenv
 check _ _ _ = False
 
 instance Eq Value where

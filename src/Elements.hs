@@ -17,7 +17,7 @@ data FOF = FEmpty HelperType
 data IFunction = Incomplete String Metarule HelperType [FOF]
                | Complete String Metarule HelperType [FOF] 
 
-data IProgram = IProgram [IFunction] [IFunction] Constraint
+data IProgram = IProgram [IFunction] [IFunction]
 
 instance Show FOF where
     show (FEmpty _) = "???"
@@ -25,7 +25,7 @@ instance Show FOF where
 
 instance Show IFunction where
     show (Incomplete _ _ _ _) = "???"
-    show (Complete name mr _ fofs) = name ++ " = " ++ 
+    show (Complete name mr t fofs) = show t ++ "::" ++ name ++ " = " ++ 
         case mr of
             MEmpty -> "???"
             IF -> "if " ++ show (fofs!!0) ++ " else " ++ show (fofs!!1) ++ "then" ++ show (fofs!!2)
@@ -35,5 +35,5 @@ instance Show IFunction where
             FILTER -> "filter " ++ show (fofs!!0)
 
 instance Show IProgram where
-    show (IProgram _ cs _) = foldr addNl "" ((map show.reverse) cs)
+    show (IProgram _ cs) = foldr addNl "" ((map show.reverse) cs)
         where addNl c str = c ++ "\n" ++ str

@@ -2,6 +2,7 @@ module Language.Types where
 
 import Data.Map as Map hiding (foldr)
 import Data.Maybe
+import Debug.Trace
 
 data HelperType = TVar String
                 | BaseType String
@@ -9,56 +10,44 @@ data HelperType = TVar String
                 | Arrow [HelperType] (HelperType) 
                 deriving (Show, Eq)
 
-type Constraint = Map String HelperType
+type Substitution = Map String HelperType
 
-emptyC :: Constraint
-emptyC = Map.empty
+emptySubst :: Substitution
+emptySubst = Map.empty
 
-unifier :: HelperType -> HelperType -> Constraint -> Maybe Constraint
-unifier (BaseType t1) (BaseType t2) const = 
-  if t1 == t2
-  then Just const
-  else Nothing
-
-unifier (Arrow args1 _) (Arrow args2 _) _
+unify :: HelperType -> HelperType -> Maybe Substitution
+unify (BaseType t1) (BaseType t2)
+  | t1 == t2 = Just emptySubst
+  | otherwise = Nothing
+unify (Arrow args1 _) (Arrow args2 _)
   | length args1 /= length args2 = Nothing 
+unify (Arrow args1 res1) (Arrow args2 res2) =
+  Prelude.foldl f (Just emptySubst) zipped
+  where zipped = (res1, res2) : zip args1 args2
+        f Nothing _ = Nothing
+        f (Just s) (t1, t2) = 
+          case unify (applySubst s t1) (applySubst s t2) of
+            Nothing -> Nothing
+            Just nS -> Just (nS `compose` s)
+unify t1 (TArray t2) | t1 == t2 = Nothing -- use free variables check for inf types
+unify (TArray t2) t1 | t1 == t2 = Nothing
+unify t (TVar a) = Just (Map.singleton a t)
+unify (TVar a) t = Just (Map.singleton a t)
+unify (TArray t1) (TArray t2) = unify t1 t2
+unify _ _ = Nothing
 
-unifier (Arrow args1 res1) (Arrow args2 res2) constr =
-  case unifier res1 res2 constr of
-    Nothing -> Nothing
-    (Just c) -> afterArgsUnif c
-  where afterArgsUnif start = foldr unifyArgs (Just start) (zip args1 args2)
-        unifyArgs (arg1, arg2) (Just crtConst) = unifier arg1 arg2 crtConst
-        unifyArgs _ Nothing = Nothing
-
-unifier (TVar a) (TVar b) const | a == b = Just const
-
-unifier t1 (TArray t2) const | t1 == t2 = Nothing 
-
-unifier (TArray t2) t1 const | t1 == t2 = Nothing 
-
-unifier t (TVar a) const = 
-  case Map.lookup a const of
-    Just atype -> unifier atype t const
-    Nothing -> Just (Map.insert a t const)
-
-unifier (TVar a) t const = 
-  case Map.lookup a const of
-    Just atype -> unifier atype t const
-    Nothing -> Just (Map.insert a t const)
-
-unifier (TArray t1) (TArray t2) constr = unifier t1 t2 constr
-
-unifier _ _ _ = Nothing
-
-applyConstraints :: HelperType -> Constraint -> HelperType -- TODO: Needs verification?
-applyConstraints (TVar a) constr = 
-  case Map.lookup a constr of
+applySubst :: Substitution -> HelperType -> HelperType
+applySubst subst (TVar a) = 
+  case Map.lookup a subst of
     Just t -> t
     Nothing -> TVar a
-applyConstraints (Arrow args res) constr = Arrow (Prelude.map (\a -> applyConstraints a constr) args) (applyConstraints res constr)
-applyConstraints (TArray ht) constr = TArray (applyConstraints ht constr)
-applyConstraints (BaseType b) _ = BaseType b
+applySubst subst (Arrow args res) = 
+  Arrow (Prelude.map (\a -> applySubst subst a) args) (applySubst subst res)
+applySubst subst (TArray ht) = TArray (applySubst subst ht)
+applySubst _ (BaseType b) = BaseType b
+
+compose :: Substitution -> Substitution -> Substitution
+compose s1 s2 = (Map.map (applySubst s1) s2) `Map.union` s1
 
 freshen :: Int -> HelperType -> HelperType
 freshen id (TVar n) = TVar (n ++ show id)
