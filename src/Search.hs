@@ -13,12 +13,6 @@ type Signature = (String, HelperType)
 type FuncPool = [Signature]
 type State = (MetaPool, FuncPool, Int)
 
-isComplete :: IProgram -> Bool
-isComplete (IProgram [] cs) = all checkComp cs
-    where checkComp (Complete _ _ _ cs) = True
-          checkComp _ = False 
-isComplete _ = False
-
 --- IDDFS
 
 selectFirstResult :: (a -> Maybe b) -> [a] -> Maybe b
@@ -28,8 +22,11 @@ selectFirstResult select (x:xs) =
         Nothing -> selectFirstResult select xs
         _ -> select x 
 
+steps :: [Int]
+steps = [2*i+1 | i <- [0 .. ]]
+
 iddfs :: (a -> Bool) -> (a -> [a]) -> a -> Maybe a
-iddfs c e i = selectFirstResult (\d -> (trace ("Searching at depth " ++ show d ++ "...")) boundedSearch d c e i) [1 .. ]
+iddfs c e i = selectFirstResult (\d -> (trace ("Searching at depth " ++ show d ++ "...")) boundedSearch d c e i) steps
     where boundedSearch d c e crt
             | d == 0         = Nothing
             | c crt == True  = Just crt
@@ -38,27 +35,23 @@ iddfs c e i = selectFirstResult (\d -> (trace ("Searching at depth " ++ show d +
 --- for expansion of nodes
 
 expand :: (IProgram, State) -> [(IProgram, State)]
-expand (prog, (mp, fp, cnt)) = if hasMetarule prog
-                               then
-                                   if isComplete prog
-                                   then []
-                                   else zipWith (\(p, cnt, newFP) m -> (p, (m, newFP, cnt))) (specialize prog MEmpty fp cnt) (repeat mp)
-                               else (concat.map create) [0 .. (length mp) - 1]
+expand (prog, (mp, fp, cnt)) 
+    | hasMetarule prog = if isCompleteIP prog
+                         then []
+                         else zipWith (\(p, cnt, newFP) m -> (p, (m, newFP, cnt))) (specialize prog MEmpty fp cnt) (repeat mp)
+    | otherwise        = (concat.map create) [0 .. (length mp) - 1]
     where create idx = let progs = specialize prog (mp !! idx) fp cnt in
                        zipWith (\(p, cnt, newFP) m -> (p, (m, newFP, cnt))) progs (repeat mp)
-          hasMetarule (IProgram ((Incomplete name MEmpty _ _):is) cs) = False
-          hasMetarule _ = True
 
 specialize :: IProgram -> Metarule -> FuncPool -> Int -> [(IProgram, Int, FuncPool)]
 specialize (IProgram [] cs) mr fp cnt = [(IProgram [] cs, cnt, fp)]
-specialize (IProgram (i:is) cs) mr fp cnt = 
-    case i of
-        Complete _ _ _ _ -> [(IProgram is (i:cs), cnt, fp)]
-        Incomplete _ _ _ _ -> map createIPs (fill i mr fp [] cnt) 
+specialize (IProgram (i:is) cs) mr fp cnt = map createIPs (fill i mr fp [] cnt) 
     where createIPs (fun, cnt, subst, newFP) = 
-            ((IProgram (map (applyConstIF subst) fun ++ map (applyConstIF subst) is) cs), 
+            ((IProgram (map (applyConstIF subst) (takeIncomp fun) ++ map (applyConstIF subst) is) (takeComp fun ++ cs)), 
              cnt, 
              map (\(n, t) -> (n, applySubst subst t)) newFP)
+          takeComp fun = takeWhile isCompleteIF fun
+          takeIncomp fun = dropWhile isCompleteIF fun
 
 applyConstIF :: Substitution -> IFunction -> IFunction
 applyConstIF subst ifn = 
@@ -80,7 +73,6 @@ mrType MAP cnt = ([Arrow [TVar ("a" ++ (show cnt))] (TVar ("b" ++ (show cnt)))],
 mrType FILTER cnt = ([Arrow [TVar ("a" ++ (show cnt))] (BaseType "Bool")],
                      Arrow [TArray (TVar ("a" ++ (show cnt)))] (TArray (TVar ("a" ++ (show cnt)))))
 
-
 fill :: IFunction -> Metarule -> FuncPool -> [FOF] -> Int -> [([IFunction], Int, Substitution, FuncPool)]
 fill (Incomplete name MEmpty ift []) mr fp _ cnt = 
     case subst of
@@ -92,7 +84,7 @@ fill (Incomplete name MEmpty ift []) mr fp _ cnt =
 
 fill (Incomplete name mr ift ((FEmpty fType):xs)) _ fp prev cnt =
     onlyPossible fp ++ 
-    [([Incomplete name mr ift (prev ++ (FOF (show cnt):xs)),
+    [([Incomplete name mr ift (reverse prev ++ (FOF (show cnt):xs)),
        Incomplete (show cnt) MEmpty fType []], 
        cnt + 1, emptySubst, fp ++ [(show cnt, fType)])]
     where onlyPossible [] = []
@@ -107,12 +99,12 @@ fill (Incomplete name mr ift ((FEmpty fType):xs)) _ fp prev cnt =
                     if isDigit (head fn) && isDigit (head name) 
                     then 
                         if (read name :: Integer) < (read fn :: Integer)
-                        then ([Incomplete name mr ift (prev ++ (FOF fn:xs))], newCnt, subst, fp):(onlyPossible fs)
+                        then ([Incomplete name mr ift (reverse prev ++ (FOF fn:xs))], newCnt, subst, fp):(onlyPossible fs)
                         else (onlyPossible fs)
-                    else ([Incomplete name mr ift (prev ++ (FOF fn:xs))], newCnt, subst, fp):(onlyPossible fs)
+                    else ([Incomplete name mr ift (reverse prev ++ (FOF fn:xs))], newCnt, subst, fp):(onlyPossible fs)
                 Nothing -> onlyPossible fs
 
 fill (Incomplete name mr fType (FOF f:xs)) newMr fp prev cnt = 
-    fill (Incomplete name mr fType xs) newMr fp (prev ++ [FOF f]) cnt
-fill (Incomplete name mr fType []) _ fp prev cnt = [([Complete name mr fType prev], cnt, emptySubst, fp)]
+    fill (Incomplete name mr fType xs) newMr fp (FOF f : prev) cnt
+fill (Incomplete name mr fType []) _ fp prev cnt = [([Complete name mr fType (reverse prev)], cnt, emptySubst, fp)]
 fill (Complete name m fTyp fofs) _ fp _ cnt = [([Complete name m fTyp fofs], cnt, emptySubst, fp)]

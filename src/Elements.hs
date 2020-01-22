@@ -14,9 +14,9 @@ data Metarule = MEmpty
 data FOF = FEmpty HelperType
          | FOF String
 
-
+-- TODO: break [FOF] in 2 lists, one for empty holes, one for full holes
 data IFunction = Incomplete String Metarule HelperType [FOF]
-               | Complete String Metarule HelperType [FOF] 
+               | Complete String Metarule HelperType [FOF]
 
 data IProgram = IProgram [IFunction] [IFunction]
 
@@ -36,7 +36,24 @@ instance Show IFunction where
             MAP -> "map " ++ show (fofs!!0)
             FOLD -> "fold " ++ show (fofs!!0)
             FILTER -> "filter " ++ show (fofs!!0)
-
+ 
 instance Show IProgram where
     show (IProgram _ cs) = foldr addNl "" ((map show.reverse) cs)
         where addNl c str = c ++ "\n" ++ str
+
+----- Helpers
+
+isCompleteIP :: IProgram -> Bool
+isCompleteIP (IProgram [] cs) = all isCompleteIF cs
+isCompleteIP _ = False
+
+isCompleteIF :: IFunction -> Bool
+isCompleteIF (Complete _ _ _ _) = True
+isCompleteIF _ = False
+
+emptyProg :: String -> HelperType -> IProgram
+emptyProg targetName targetType = IProgram [Incomplete targetName MEmpty targetType []] []
+
+hasMetarule :: IProgram -> Bool
+hasMetarule (IProgram ((Incomplete _ MEmpty _ _):_) _) = False
+hasMetarule _ = True
