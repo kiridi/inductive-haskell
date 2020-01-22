@@ -8,10 +8,12 @@ import Language.Types
 import Data.Maybe
 import Data.Char
 import Data.List hiding (find)
-import Debug.Trace
+import Data.Graph
 
 import Elements
 import Search
+
+import Debug.Trace
 
 type VEnv = Environment Value
 type TEnv = Environment HelperType
@@ -108,9 +110,7 @@ ifToDefn _ = error "Only complete IFunctions should be translated"
 
 checkTarget :: Ident -> [IFunction] -> VEnv-> EEnv -> Bool
 checkTarget target funcs venv eenv = 
-  if (res_pos get_pex == True && res_neg get_nex == False)
-  then True
-  else False
+  res_pos get_pex == True && res_neg get_nex == False
   where (get_pex, get_nex) = find eenv target
         func name = 
           case find newEnv name of
@@ -122,17 +122,15 @@ checkTarget target funcs venv eenv =
         checkNegEx _ _ = error "Error when checking the negative examples"
         res_pos exs = foldr checkPosEx True exs
         res_neg exs = foldr checkNegEx False exs
-        newEnv = (foldr (\ifun env' -> elab (ifToDefn ifun) env') venv (order funcs))
-        order fs = sortBy sf fs
-        sf (Complete n1 _ _ _) (Complete n2 _ _ _) = 
-          if n1 == "target"
-          then LT
-          else 
-            if n2 == "target"
-            then GT
-            else if (read n1 :: Integer) < (read n2 :: Integer)
-            then LT
-            else GT
+        newEnv = (foldl (\env' ifun -> elab (ifToDefn ifun) env') venv ordered)
+
+        names fs = map (\ (Complete n _ _ _) -> n) fs
+        createEdges [] = []
+        createEdges ((n, ifn):ns) = (ifn, n, neighbours n) : createEdges ns
+        neighbours n = (names.filter (\ (Complete _ _ _ fofs) -> inFofs n fofs)) funcs
+        inFofs n fofs = any (\ (FOF fn) -> fn == n) fofs
+        (graph, nodeFromVertex, vertexFromKey) = graphFromEdges ((createEdges.zip (names funcs)) funcs)
+        ordered = map ((\(a, _, _) -> a).nodeFromVertex) (topSort graph)
 
 init_env :: VEnv
 init_env = 
@@ -193,10 +191,10 @@ obey (Define def) (venv, tenv, eenv) =
 
 obey (Synth name typ) (venv, tenv, eenv) = (show prog, (venv, tenv, eenv))
   where Just (prog, _) = iddfs (check venv eenv) expand initProg
-        bkfof = envToList tenv
-        myType = find tenv' name
-        tenv' = define tenv name typ
-        initProg = (emptyProg name typ, (metarules, bkfof, 0))
+        bkfof          = envToList tenv
+        myType         = find tenv' name
+        tenv'          = define tenv name typ
+        initProg       = (emptyProg name typ, (metarules, bkfof, 0))
 
 metarules :: [Metarule]
 metarules = [MAP, COMP, FILTER]
