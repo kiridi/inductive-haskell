@@ -2,6 +2,7 @@ module Elements where
 
 import Language.Types
 import Data.String
+import Data.Char
  
 data Metarule = MEmpty
               | IF
@@ -21,11 +22,13 @@ data IProgram = IProgram [IFunction] [IFunction]
 
 instance Show FOF where
     show (FEmpty _) = "???"
-    show (FOF name) = name
+    show (FOF name) = 
+        (if isDigit (head name) then "gen" else "") ++ name
 
 instance Show IFunction where
     show (Incomplete _ _ _ _) = "???"
-    show (Complete name mr t fofs) = show t ++ "::" ++ name ++ " = " ++ 
+    show (Complete name mr t fofs) = 
+        (if isDigit (head name) then "gen" else "") ++ name ++ " = " ++ 
         case mr of
             MEmpty -> "???"
             IF -> "if " ++ show (fofs!!0) ++ " else " ++ show (fofs!!1) ++ "then" ++ show (fofs!!2)

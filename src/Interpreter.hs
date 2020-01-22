@@ -130,7 +130,7 @@ checkTarget target funcs venv eenv =
           else 
             if n2 == "target"
             then GT
-            else if (read (drop 3 n1) :: Integer) < (read (drop 3 n2) :: Integer)
+            else if (read n1 :: Integer) < (read n2 :: Integer)
             then LT
             else GT
 

@@ -6,6 +6,7 @@ import Language.Environment
 import Language.Types
 import Data.Maybe
 import Debug.Trace
+import Data.Char
 
 type MetaPool = [Metarule]
 type Signature = (String, HelperType)
@@ -91,21 +92,21 @@ fill (Incomplete name MEmpty ift []) mr fp _ cnt =
 
 fill (Incomplete name mr ift ((FEmpty fType):xs)) _ fp prev cnt =
     onlyPossible fp ++ 
-    [([Incomplete name mr ift (prev ++ (FOF ("gen" ++ show cnt):xs)),
-       Incomplete ("gen" ++ show cnt) MEmpty fType []], 
-       cnt + 1, emptySubst, fp ++ [("gen" ++ show cnt, fType)])]
+    [([Incomplete name mr ift (prev ++ (FOF (show cnt):xs)),
+       Incomplete (show cnt) MEmpty fType []], 
+       cnt + 1, emptySubst, fp ++ [(show cnt, fType)])]
     where onlyPossible [] = []
           onlyPossible ((fn, ft):fs) =
             let (corrFT, newCnt) = 
-                    if "gen" `isPrefixOf` fn 
+                    if isDigit (head fn) 
                     then (ft, cnt)
                     else (freshen cnt ft, cnt + 1)
             in
             case unify fType corrFT of
                 Just subst -> 
-                    if "gen" `isPrefixOf` fn && "gen" `isPrefixOf` name 
+                    if isDigit (head fn) && isDigit (head name) 
                     then 
-                        if (read (drop 3 name) :: Integer) < (read (drop 3 fn) :: Integer)
+                        if (read name :: Integer) < (read fn :: Integer)
                         then ([Incomplete name mr ift (prev ++ (FOF fn:xs))], newCnt, subst, fp):(onlyPossible fs)
                         else (onlyPossible fs)
                     else ([Incomplete name mr ift (prev ++ (FOF fn:xs))], newCnt, subst, fp):(onlyPossible fs)
