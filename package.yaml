@@ -27,6 +27,7 @@ dependencies:
 - containers
 - mtl
 - unix
+- IntGraph
 
 library:
   source-dirs: src

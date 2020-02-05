@@ -9,6 +9,8 @@ import Data.Maybe
 import Data.Char
 import Data.List hiding (find)
 import Data.Graph
+import DepGraph
+import Data.Map as Map hiding (find, foldr, foldl, map, filter)
 
 import Elements
 import Search
@@ -109,7 +111,7 @@ ifToDefn (Complete name mr typ fofs) =
 ifToDefn _ = error "Only complete IFunctions should be translated"
 
 checkTarget :: Ident -> [IFunction] -> VEnv-> EEnv -> Bool
-checkTarget target funcs venv eenv = 
+checkTarget target funcs venv eenv = --trace (show funcs ++ "\n") 
   res_pos get_pex == True && res_neg get_nex == False
   where (get_pex, get_nex) = find eenv target
         func name = 
@@ -155,6 +157,7 @@ init_env =
     pureprim "head" (\ [Cons h t] -> h),
     pureprim "tail" (\ [Cons h t] -> t),
     pureprim ":" (\ [a, b] -> Cons a b),
+    
     pureprim "isAlpha" (\ [CharVal a] -> BoolVal (isAlpha a)),
     pureprim "isLowerCase" (\ [CharVal a] -> BoolVal (isLower a)),
     pureprim "isUpperCase" (\ [CharVal a] -> BoolVal (isUpper a)),
@@ -194,13 +197,14 @@ obey (Synth name typ) (venv, tenv, eenv) = (show prog, (venv, tenv, eenv))
         bkfof          = envToList tenv
         myType         = find tenv' name
         tenv'          = define tenv name typ
-        initProg       = (emptyProg name typ, (metarules, bkfof, 0))
+        initProg       = (emptyProg name typ, (metarules, bkfof, emptyGraph, 0))
 
 metarules :: [Metarule]
 metarules = [MAP, COMP, FILTER]
 
 check :: VEnv -> EEnv -> (IProgram, State) -> Bool
-check venv eenv (IProgram [] cs, state) = isCompleteIP (IProgram [] cs) && 
+check venv eenv (IProgram [] cs, state) = --trace (show $ IProgram [] cs)
+                                          isCompleteIP (IProgram [] cs) && 
                                           checkTarget "target" cs venv eenv
 check _ _ _ = False
 

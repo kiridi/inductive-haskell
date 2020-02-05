@@ -9,7 +9,7 @@ data Metarule = MEmpty
               | COMP
               | MAP
               | FOLD
-              | FILTER
+              | FILTER deriving Show
 
 data FOF = FEmpty HelperType
          | FOF String
@@ -21,16 +21,24 @@ data IFunction = Incomplete String Metarule HelperType [FOF]
 data IProgram = IProgram [IFunction] [IFunction]
 
 instance Show FOF where
-    show (FEmpty _) = "???"
+    show (FEmpty t) = "FEmpty " ++ show t
     show (FOF name) = 
         (if isDigit (head name) then "gen" else "") ++ name
 
 instance Show IFunction where
-    show (Incomplete _ _ _ _) = "???"
-    show (Complete name mr t fofs) = 
+    show (Incomplete name mr t fofs) = 
         (if isDigit (head name) then "gen" else "") ++ name ++ " = " ++ 
         case mr of
-            MEmpty -> "???"
+            MEmpty -> "Empty function, type:" ++ show t
+            IF -> "if " ++ show (fofs!!0) ++ " else " ++ show (fofs!!1) ++ "then" ++ show (fofs!!2)
+            COMP -> show (fofs!!0) ++ "." ++ show (fofs!!1)
+            MAP -> "map " ++ show (fofs!!0)
+            FOLD -> "fold " ++ show (fofs!!0)
+            FILTER -> "filter " ++ show (fofs!!0)
+    show (Complete name mr t fofs) = 
+        (show t) ++ "\n" ++ (if isDigit (head name) then "gen" else "") ++ name ++ " = " ++ 
+        case mr of
+            MEmpty -> "Empty function, type" ++ show t
             IF -> "if " ++ show (fofs!!0) ++ " else " ++ show (fofs!!1) ++ "then" ++ show (fofs!!2)
             COMP -> show (fofs!!0) ++ "." ++ show (fofs!!1)
             MAP -> "map " ++ show (fofs!!0)
@@ -38,7 +46,7 @@ instance Show IFunction where
             FILTER -> "filter " ++ show (fofs!!0)
  
 instance Show IProgram where
-    show (IProgram _ cs) = foldr addNl "" ((map show.reverse) cs)
+    show (IProgram is cs) = (foldr addNl "" ((map show.reverse) cs)) ++ (foldr addNl "" ((map show.reverse) is)) ++ "\n----\n"
         where addNl c str = c ++ "\n" ++ str
 
 ----- Helpers

@@ -1,13 +1,13 @@
-val addOne(x @ Int) @ Int = x + 1;;
+--val addOne(x @ Int) @ Int = x + 1;;
 
-val addTwo(x @ Int) @ Int = x + 2;;
+--val addTwo(x @ Int) @ Int = x + 2;;
 
-val isOdd(x @ Int) @ Bool = 
-    if x mod 2 = 0 
-    then false
-    else true;;
+--val isOdd(x @ Int) @ Bool = 
+--    if x mod 2 = 0 
+--    then false
+--    else true;;
 
-rec reverse1(xs @ [Int], ys @ [Int]) @ [Int] = 
+rec reverse1(xs @ [a], ys @ [a]) @ [a] = 
     if xs = nil
     then ys
     else reverse1(tail(xs), head(xs):ys);;
