@@ -4,18 +4,18 @@ import Data.Map as Map hiding (foldr)
 import Data.Maybe
 import Debug.Trace
 
-data HelperType = TVar String
+data Type = TVar String
                 | BaseType String
-                | TArray (HelperType)
-                | Arrow [HelperType] (HelperType) 
+                | TArray (Type)
+                | Arrow [Type] (Type)
                 deriving (Show, Eq)
 
-type Substitution = Map String HelperType
+type Substitution = Map String Type
 
 emptySubst :: Substitution
 emptySubst = Map.empty
 
-unify :: HelperType -> HelperType -> Maybe Substitution
+unify :: Type -> Type -> Maybe Substitution
 unify (BaseType t1) (BaseType t2)
   | t1 == t2 = Just emptySubst
   | otherwise = Nothing
@@ -36,7 +36,7 @@ unify (TVar a) t = Just (Map.singleton a t)
 unify (TArray t1) (TArray t2) = unify t1 t2
 unify _ _ = Nothing
 
-applySubst :: Substitution -> HelperType -> HelperType
+applySubst :: Substitution -> Type -> Type
 applySubst subst (TVar a) = 
   case Map.lookup a subst of
     Just t -> t
@@ -49,7 +49,7 @@ applySubst _ (BaseType b) = BaseType b
 compose :: Substitution -> Substitution -> Substitution
 compose s1 s2 = (Map.map (applySubst s1) s2) `Map.union` s1
 
-freshen :: Int -> HelperType -> HelperType
+freshen :: Int -> Type -> Type
 freshen id (TVar n) = TVar (n ++ show id)
 freshen id (TArray t) = TArray (freshen id t)
 freshen id (Arrow ins out) = Arrow (Prelude.map (freshen id) ins) (freshen id out)

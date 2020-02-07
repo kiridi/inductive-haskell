@@ -18,7 +18,7 @@ import Search
 import Debug.Trace
 
 type VEnv = Environment Value
-type TEnv = Environment HelperType
+type TEnv = Environment Type
 type EEnv = Environment ([Example Value], [Example Value])
 
 data Example a = Pos [a] a

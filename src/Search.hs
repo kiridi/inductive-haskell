@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Search where
 
 import Elements
@@ -9,34 +11,83 @@ import Debug.Trace
 import Data.Char
 import Data.Map as Map hiding (map, foldr, foldl)
 import Data.Set as Set hiding (map, foldr, foldl)
-import DepGraph
+import FuncDepGraph
 
-type MetaPool = [Metarule]
-type FuncPool = [(String, HelperType)]
-type State = (MetaPool, FuncPool, DepGraph, Int)
+import Control.Monad.State
+
+type UniqueID = Int
+type Name = String
+type Metarules = [Metarule]
+type FunctionContext = Map Name Type
+
+data ProgInfo = ProgInfo {
+    ip :: IProgram,
+    mrs :: Metarules,
+    fCon :: FunctionContext,
+    fDepG :: FuncDepGraph,
+    uid :: UniqueID
+}
+
+--- State monad
+
+updateFContext :: Name -> Type -> ProgInfo -> ProgInfo
+updateFContext n t pinf = pinf { fCon = Map.insert n t (fCon pinf) }
+
+applySubstitution :: Substitution -> ProgInfo -> ProgInfo
+-- TODO
+applySubstitution subst pinf = pinf
+
+updateCounter :: ProgInfo -> ProgInfo
+updateCounter pinf = pinf { uid = (uid pinf) + 1 }
+
+popIncomplete :: ProgInfo -> Maybe (IFunction, ProgInfo)
+selectIncomplete pinf =
+    case pinf ip of 
+        IProgram (i:is) cs -> Just (i, pinf { ip = IProgram is cs })
+        IProgram [] cs -> Nothing
+
+pushIF :: IFunction -> ProgInfo -> ProgInfo
+pushIF ifun state = state { ip = addIFtoIP ifun (ip state) }
 
 --- IDDFS
+progSearch :: Monad m => (IProgram -> Bool) -> 
+                         (ProgInfo -> State ProgInfo ()) -> 
+                         ProgInfo -> ProgInfo
+progSearch check next initInfo = 
+    selectFirstResult (\d -> (trace ("Searching at depth " ++ show d ++ "...")) dbSearch d check next initInfo) [0 .. ]
+    where dbSearch d check next crtState
+            | d == 0             = Nothing
+            | check crt == True  = Just crt
+            | check crt == False = selectFirstResult (dbSearch (d - 1) check next) (map next (combine crtState))
+          selectFirstResult select [] = Nothing
+          selectFirstResult select (xm:xms) = 
+          do 
+            res <- xm
+            (
+                case select res of
+                    Nothing -> selectFirstResult select xs
+                    Just x  -> Just x
+            ) 
 
-selectFirstResult :: (a -> Maybe b) -> [a] -> Maybe b
-selectFirstResult select [] = Nothing
-selectFirstResult select (x:xs) = 
-    case select x of
-        Nothing -> selectFirstResult select xs
-        _       -> select x 
+fillEmptyIfn :: IFunction :: State ProgInfo ()
+fillEmptyIfn pinf =
+    do
+        (candidate, newState) <- popIncomplete pinf
+        
 
-steps :: [Int]
-steps = [i | i <- [0 .. ]]
+     map fillWith (mrs pinf)
+    where (candidate, newState) = popIncomplete pinf
+          fillWith mr = explode (Incomplete )
+          
+        
 
-iddfs :: Show a => (a -> Bool) -> (a -> [a]) -> a -> Maybe a
-iddfs c e i = selectFirstResult (\d -> (trace ("Searching at depth " ++ show d ++ "...")) boundedSearch d c e i) steps
-    where boundedSearch d c e crt
-            | d == 0         = Nothing
-            | c crt == True  = {-trace (show crt ++ "\n")-} Just crt
-            | c crt == False = {-trace (show crt ++ "\n")-} selectFirstResult (boundedSearch (d - 1) c e) (e crt)
 
 --- for expansion of nodes
 
-expand :: (IProgram, State) -> [(IProgram, State)]
+inferTypes :: State ProgInfo ()
+inferTypes state = 
+    where myIncomplete = selectIncompelte ip 
+
 expand (prog, (mp, fp, fc, cnt)) 
     | hasMetarule prog = if isCompleteIP prog
                          then []
@@ -45,7 +96,7 @@ expand (prog, (mp, fp, fc, cnt))
     where create idx = let progs = specialize prog (mp !! idx) fp fc cnt in
                        zipWith (\(p, cnt, newFP, newFC) m -> (p, (m, newFP, newFC, cnt))) progs (repeat mp)
 
-specialize :: IProgram -> Metarule -> FuncPool -> DepGraph -> Int -> [(IProgram, Int, FuncPool, DepGraph)]
+specialize :: IProgram -> Metarule -> FunctionContext -> FuncDepGraph -> Int -> [(IProgram, Int, FunctionContext, FuncDepGraph)]
 specialize (IProgram [] cs) mr fp fc cnt = [(IProgram [] cs, cnt, fp, fc)]
 specialize (IProgram (i:is) cs) mr fp fc cnt = map createIPs (fill i mr fp fc [] cnt) 
     where createIPs (fun, cnt, subst, newFP, newFC) = 
@@ -67,16 +118,16 @@ applyConstIF subst ifn =
           apply subst (FOF a) = FOF a
           apply subst (FEmpty t) = FEmpty (applySubst subst t)
 
-mrType :: Metarule -> Int -> ([HelperType], HelperType)
-mrType COMP cnt = ([Arrow [(TVar ("b" ++ (show cnt)))] (TVar ("c" ++ (show cnt))), 
-                    Arrow [(TVar ("a" ++ (show cnt)))] (TVar ("b" ++ (show cnt)))],
-                  (Arrow [TVar ("a" ++ (show cnt))] (TVar ("c" ++ (show cnt)))))
-mrType MAP cnt = ([Arrow [TVar ("a" ++ (show cnt))] (TVar ("b" ++ (show cnt)))],
-                  Arrow [TArray (TVar ("a" ++ (show cnt)))] (TArray (TVar ("b" ++ (show cnt)))))
-mrType FILTER cnt = ([Arrow [TVar ("a" ++ (show cnt))] (BaseType "Bool")],
-                     Arrow [TArray (TVar ("a" ++ (show cnt)))] (TArray (TVar ("a" ++ (show cnt)))))
+mrType :: Metarule -> Int -> ([Type], Type)
+mrType COMP cnt = ([Arrow [(TVar ('b':[show cnt]))] (TVar ('c':[show cnt])), 
+                    Arrow [(TVar ('a':[show cnt]))] (TVar ('b':[show cnt]))],
+                  (Arrow [TVar ('a':[show cnt])] (TVar ('c':[show cnt]))))
+mrType MAP cnt = ([Arrow [TVar ('a':[show cnt])] (TVar ('b':[show cnt]))],
+                  Arrow [TArray (TVar ('a':[show cnt]))] (TArray (TVar ('b':[show cnt]))))
+mrType FILTER cnt = ([Arrow [TVar ('a':[show cnt])] (BaseType 'Bool')],
+                     Arrow [TArray (TVar ('a':[show cnt]))] (TArray (TVar ('a':[show cnt]))))
 
-fill :: IFunction -> Metarule -> FuncPool -> DepGraph -> [FOF] -> Int -> [([IFunction], Int, Substitution, FuncPool, DepGraph)]
+fill :: IFunction -> Metarule -> FunctionContext -> FuncDepGraph -> [FOF] -> Int -> [([IFunction], Int, Substitution, FunctionContext, FuncDepGraph)]
 fill (Incomplete name MEmpty ift []) mr fp fc _ cnt = 
     case subst of
         Just s -> [([Incomplete name mr ift fPhs], cnt + 1, s, fp, fc)]

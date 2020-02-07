@@ -11,12 +11,12 @@ data Metarule = MEmpty
               | FOLD
               | FILTER deriving Show
 
-data FOF = FEmpty HelperType
+data FOF = FEmpty Type
          | FOF String
 
 -- TODO: break [FOF] in 2 lists, one for empty holes, one for full holes
-data IFunction = Incomplete String Metarule HelperType [FOF]
-               | Complete String Metarule HelperType [FOF]
+data IFunction = Incomplete String Metarule Type [FOF]
+               | Complete String Metarule Type [FOF]
 
 data IProgram = IProgram [IFunction] [IFunction]
 
@@ -55,11 +55,17 @@ isCompleteIP :: IProgram -> Bool
 isCompleteIP (IProgram [] cs) = all isCompleteIF cs
 isCompleteIP _ = False
 
+addIFtoIP :: IFunction -> IProgram -> IProgram
+addIFtoIP ifun (IProgram is cs) = 
+    case isCompleteIF ifun of
+        True -> IProgram is (ifun:cs)
+        False -> IProgram (ifun:is) cs
+
 isCompleteIF :: IFunction -> Bool
 isCompleteIF (Complete _ _ _ _) = True
 isCompleteIF _ = False
 
-emptyProg :: String -> HelperType -> IProgram
+emptyProg :: String -> Type -> IProgram
 emptyProg targetName targetType = IProgram [Incomplete targetName MEmpty targetType []] []
 
 hasMetarule :: IProgram -> Bool
