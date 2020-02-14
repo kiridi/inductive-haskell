@@ -4,7 +4,6 @@ import Language.Parsing
 import Language.Syntax
 import Language.FunParser
 import Language.Environment
-import Language.Types
 import Data.Maybe
 import Data.Char
 import Data.List hiding (find)
@@ -13,12 +12,13 @@ import DepGraph
 import Data.Map as Map hiding (find, foldr, foldl, map, filter)
 
 import Elements
-import Search
+import Language.Types
+import Language.Infer
+-- import Search
 
 import Debug.Trace
 
 type VEnv = Environment Value
-type TEnv = Environment Type
 type EEnv = Environment ([Example Value], [Example Value])
 
 data Example a = Pos [a] a
@@ -49,7 +49,7 @@ eval (If e1 e2 e3) env =
     _ -> error "boolean required in conditional"
 
 eval (Apply f es) env =
-  apply (eval f env) (map ev es)
+  applyF (eval f env) (map ev es)
     where ev e1 = eval e1 env
 
 eval (Lambda xs e1) env = abstract xs e1 env
@@ -58,31 +58,34 @@ eval (Let d e1) env = eval e1 (elab d env)
 
 eval e env = error ("can't evaluate")
 
-apply :: Value -> [Value] -> Value
-apply (Function f) args = f args
-apply _ args = error "applying a non-function"
+applyF :: Value -> [Value] -> Value
+applyF (Function f) args = f args
+applyF _ args = error "applying a non-function"
 
 abstract :: [Ident] -> Expr -> VEnv -> Value
 abstract xs e env = 
   Function (\args -> eval e (defargs env xs args))
 
 elab :: Defn -> VEnv -> VEnv
-elab (Val x _ e) env = define env x (eval e env)
+elab (Val x e) env = define env x (eval e env)
 
-elab (Rec x _ (Lambda xs e1)) env =
+elab (Rec x (Lambda xs e1)) env =
   env' where env' = define env x (abstract xs e1 env')
-elab (Rec x _ _) env =
+elab (Rec x _) env =
   error "RHS of letrec must be a lambda"
 
 addSignature :: Defn -> TEnv -> TEnv
-addSignature (Val name typ _) tenv = define tenv name typ
-addSignature (Rec name typ _) tenv = define tenv name typ
+addSignature (Val name body) tenv = 
+  case runInfer $ infer tenv body of
+    Nothing -> error ("Type error when trying to define " ++ name)
+    Just t -> define tenv name t
+--addSignature (Rec name body) tenv = define tenv name (runInfer $ infer tenv body)
 addSignature _ tenv = tenv
 
 addExample :: Defn -> VEnv -> EEnv -> EEnv
 addExample (PEx name ins out) venv eenv = 
   case maybe_find eenv name of
-    Nothing           -> define eenv name ([Pos eins eout], [])
+    Nothing -> define eenv name ([Pos eins eout], [])
     Just (pos, neg) -> define eenv name ((Pos eins eout) : pos, neg)
   where eins = map (\ e -> eval e venv) ins
         eout = eval out venv
@@ -94,45 +97,45 @@ addExample (NEx name ins out) venv eenv =
   where eins = map (\ e -> eval e venv) ins
         eout = eval out venv
 
-ifToDefn :: IFunction -> Defn
-ifToDefn (Complete name mr typ fofs) = 
-  case mr of 
-    COMP -> Val name typ (Lambda ["x"] 
-                            (Apply (Variable (getName (fofs!!0))) 
-                              [(Apply (Variable (getName (fofs!!1))) 
-                                [(Variable "x")])]))
-    MAP -> Val name typ (Lambda ["xs"]
-                          (Apply (Variable "map") 
-                            [Variable (getName (fofs!!0)), Variable "xs"]))
-    FILTER -> Val name typ (Lambda ["xs"]
-                             (Apply (Variable "filter") 
-                               [Variable (getName (fofs!!0)), Variable "xs"]))
-  where getName (FOF name) = name
-ifToDefn _ = error "Only complete IFunctions should be translated"
+-- ifToDefn :: IFunction -> Defn
+-- ifToDefn (Complete name mr typ fofs) = 
+--   case mr of 
+--     COMP -> Val name typ (Lambda ["x"] 
+--                             (Apply (Variable (getName (fofs!!0))) 
+--                               [(Apply (Variable (getName (fofs!!1))) 
+--                                 [(Variable "x")])]))
+--     MAP -> Val name typ (Lambda ["xs"]
+--                           (Apply (Variable "map") 
+--                             [Variable (getName (fofs!!0)), Variable "xs"]))
+--     FILTER -> Val name typ (Lambda ["xs"]
+--                              (Apply (Variable "filter") 
+--                                [Variable (getName (fofs!!0)), Variable "xs"]))
+--   where getName (FOF name) = name
+-- ifToDefn _ = error "Only complete IFunctions should be translated"
 
-checkTarget :: Ident -> [IFunction] -> VEnv-> EEnv -> Bool
-checkTarget target funcs venv eenv = --trace (show funcs ++ "\n") 
-  res_pos get_pex == True && res_neg get_nex == False
-  where (get_pex, get_nex) = find eenv target
-        func name = 
-          case find newEnv name of
-            Function f -> Function f
-            _ -> error "Target not in the environment"
-        checkPosEx (Pos ins out) b = (apply (func target) ins == out) && b
-        checkPosEx _ _ = error "Error when checking the positive examples"
-        checkNegEx (Neg ins out) b = (apply (func target) ins == out) || b
-        checkNegEx _ _ = error "Error when checking the negative examples"
-        res_pos exs = foldr checkPosEx True exs
-        res_neg exs = foldr checkNegEx False exs
-        newEnv = (foldl (\env' ifun -> elab (ifToDefn ifun) env') venv ordered)
+-- checkTarget :: Ident -> [IFunction] -> VEnv-> EEnv -> Bool
+-- checkTarget target funcs venv eenv = --trace (show funcs ++ "\n") 
+--   res_pos get_pex == True && res_neg get_nex == False
+--   where (get_pex, get_nex) = find eenv target
+--         func name = 
+--           case find newEnv name of
+--             Function f -> Function f
+--             _ -> error "Target not in the environment"
+--         checkPosEx (Pos ins out) b = (apply (func target) ins == out) && b
+--         checkPosEx _ _ = error "Error when checking the positive examples"
+--         checkNegEx (Neg ins out) b = (apply (func target) ins == out) || b
+--         checkNegEx _ _ = error "Error when checking the negative examples"
+--         res_pos exs = foldr checkPosEx True exs
+--         res_neg exs = foldr checkNegEx False exs
+--         newEnv = (foldl (\env' ifun -> elab (ifToDefn ifun) env') venv ordered)
 
-        names fs = map (\ (Complete n _ _ _) -> n) fs
-        createEdges [] = []
-        createEdges ((n, ifn):ns) = (ifn, n, neighbours n) : createEdges ns
-        neighbours n = (names.filter (\ (Complete _ _ _ fofs) -> inFofs n fofs)) funcs
-        inFofs n fofs = any (\ (FOF fn) -> fn == n) fofs
-        (graph, nodeFromVertex, vertexFromKey) = graphFromEdges ((createEdges.zip (names funcs)) funcs)
-        ordered = map ((\(a, _, _) -> a).nodeFromVertex) (topSort graph)
+--         names fs = map (\ (Complete n _ _ _) -> n) fs
+--         createEdges [] = []
+--         createEdges ((n, ifn):ns) = (ifn, n, neighbours n) : createEdges ns
+--         neighbours n = (names.filter (\ (Complete _ _ _ fofs) -> inFofs n fofs)) funcs
+--         inFofs n fofs = any (\ (FOF fn) -> fn == n) fofs
+--         (graph, nodeFromVertex, vertexFromKey) = graphFromEdges ((createEdges.zip (names funcs)) funcs)
+--         ordered = map ((\(a, _, _) -> a).nodeFromVertex) (topSort graph)
 
 init_env :: VEnv
 init_env = 
@@ -177,6 +180,37 @@ init_env =
               BoolVal True -> Cons a (fapply p b)
               BoolVal False -> fapply p b
 
+init_tenv :: TEnv
+init_tenv = 
+  make_env [
+    ("nil", Forall ["a"] $ TArray (TVar "a")), 
+    ("true", Forall [] $ BaseType "Bool"),
+    ("false", Forall [] $ BaseType "Bool"),
+    ("+", Forall [] $ Arrow (TTuple [BaseType "Int", BaseType "Int"]) (BaseType "Int")),
+    ("-", Forall [] $ Arrow (TTuple [BaseType "Int", BaseType "Int"]) (BaseType "Int")),
+    ("*", Forall [] $ Arrow (TTuple [BaseType "Int", BaseType "Int"]) (BaseType "Int")),
+    ("div", Forall [] $ Arrow (TTuple [BaseType "Int", BaseType "Int"]) (BaseType "Int")),
+    ("mod", Forall [] $ Arrow (TTuple [BaseType "Int", BaseType "Int"]) (BaseType "Int")),
+    ("~", Forall [] $ Arrow (TTuple [BaseType "Int"]) (BaseType "Int")),
+    ("<", Forall [] $ Arrow (TTuple [BaseType "Int", BaseType "Int"]) (BaseType "Bool")),
+    ("<=", Forall [] $ Arrow (TTuple [BaseType "Int", BaseType "Int"]) (BaseType "Bool")),
+    (">", Forall [] $ Arrow (TTuple [BaseType "Int", BaseType "Int"]) (BaseType "Bool")),
+    (">=", Forall [] $ Arrow (TTuple [BaseType "Int", BaseType "Int"]) (BaseType "Bool")),
+    ("=", Forall [] $ Arrow (TTuple [BaseType "Int", BaseType "Int"]) (BaseType "Bool")),
+    ("<>", Forall [] $ Arrow (TTuple [BaseType "Int", BaseType "Int"]) (BaseType "Bool")),
+    ("head", Forall ["a"] $ Arrow (TTuple [TArray (TVar "a")]) (TVar "a")),
+    ("tail", Forall ["a"] $ Arrow (TTuple [TArray (TVar "a")]) (TArray (TVar "a"))),
+    (":", Forall ["a"] $ Arrow (TTuple [TVar "a", TArray (TVar "a")]) (TArray (TVar "a"))),
+    
+    ("isAlpha", Forall [] $ Arrow (TTuple [TArray (BaseType "Char")]) (BaseType "Bool")),
+    ("isLower", Forall [] $ Arrow (TTuple [TArray (BaseType "Char")]) (BaseType "Bool")),
+    ("isUpper", Forall [] $ Arrow (TTuple [TArray (BaseType "Char")]) (BaseType "Bool")),
+    ("isDigit", Forall [] $ Arrow (TTuple [TArray (BaseType "Char")]) (BaseType "Bool")),
+    ("isAlpha", Forall [] $ Arrow (TTuple [TArray (BaseType "Char")]) (BaseType "Bool"))]
+    --pureprim "list" (\ xs -> foldr Cons Nil xs),
+    -- pureprim "map" (\[Function f, xs] -> mapply f xs),
+    -- pureprim "filter" (\[Function p, xs] -> fapply p xs)]
+
 obey :: Phrase -> (VEnv, TEnv, EEnv) -> (String, (VEnv, TEnv, EEnv))
 
 obey (Calculate exp) (venv, tenv, eenv) =
@@ -187,26 +221,26 @@ obey (Define def) (venv, tenv, eenv) =
   let venv' = if isEx def then venv else elab def venv in
   let tenv' = if isEx def then tenv else addSignature def tenv in
   let eenv' = if isEx def then addExample def venv eenv else eenv in
-  (if (isEx def) then "" else print_defn venv' x, (venv', tenv', eenv'))
+  (if (isEx def) then "" else print_defn tenv' x, (venv', tenv', eenv'))
   where isEx (PEx _ _ _) = True
         isEx (NEx _ _ _) = True
         isEx _  = False
 
-obey (Synth name typ) (venv, tenv, eenv) = (show prog, (venv, tenv, eenv))
-  where Just (prog, _) = iddfs (check venv eenv) expand initProg
-        bkfof          = envToList tenv
-        myType         = find tenv' name
-        tenv'          = define tenv name typ
-        initProg       = (emptyProg name typ, (metarules, bkfof, emptyGraph, 0))
+-- obey (Synth name typ) (venv, tenv, eenv) = (show prog, (venv, tenv, eenv))
+--   where Just (prog, _) = iddfs (check venv eenv) expand initProg
+--         bkfof          = envToList tenv
+--         myType         = find tenv' name
+--         tenv'          = define tenv name typ
+--         initProg       = (emptyProg name typ, (metarules, bkfof, emptyGraph, 0))
 
-metarules :: [Metarule]
-metarules = [MAP, COMP, FILTER]
+-- metarules :: [Metarule]
+-- metarules = [MAP, COMP, FILTER]
 
-check :: VEnv -> EEnv -> (IProgram, State) -> Bool
-check venv eenv (IProgram [] cs, state) = --trace (show $ IProgram [] cs)
-                                          isCompleteIP (IProgram [] cs) && 
-                                          checkTarget "target" cs venv eenv
-check _ _ _ = False
+-- check :: VEnv -> EEnv -> (IProgram, State) -> Bool
+-- check venv eenv (IProgram [] cs, state) = --trace (show $ IProgram [] cs)
+--                                           isCompleteIP (IProgram [] cs) && 
+--                                           checkTarget "target" cs venv eenv
+-- check _ _ _ = False
 
 instance Eq Value where
   IntVal a == IntVal b = a == b

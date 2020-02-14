@@ -101,19 +101,19 @@ module Language.FunParser(funParser) where
     p_phrase =
       do e <- p_expr; eat SSEMI; return (Calculate e)
       <+> do d <- p_def; eat SSEMI; return (Define d)
-      <+> do eat SYNTH; name <- p_name; (_, ins) <- p_fsts; eat AT; out <- p_type; eat SSEMI; return (Synth name (Arrow ins out))
+      <+> do eat SYNTH; name <- p_name; (_, ins) <- p_fsts; eat AT; out <- p_type; eat SSEMI; return (Synth name (Arrow (TTuple ins) out))
     
     -- {\syn _def_ \arrow\ "val" _eqn_ \orr\ "rec" _eqn_ \orr\ "array" _name_ "[" _expr_ "]" \orr\ "open" _expr_}
     p_def = 
-      do eat VAL; (x, t, e) <- p_eqn; return (Val x t e) 
-      <+> do eat REC; (x, t, e) <- p_eqn; return (Rec x t e)
+      do eat VAL; (x, e) <- p_eqn; return (Val x e)
+      <+> do eat REC; (x, e) <- p_eqn; return (Rec x e)
       <+> do eat PEX; ident <- p_name; ins <- p_actuals; eat ARROW; out <- p_expr; return (PEx ident ins out)
       <+> do eat NEX; ident <- p_name; ins <- p_actuals; eat ARROW; out <- p_expr; return (NEx ident ins out)
     
     -- {\syn _eqn_ \arrow\ _name_ "=" _expr_ \orr\ _name_ _formals_ "=" _expr_}
     p_eqn =
-      do x <- p_name; eat AT; t <- p_type; eat EQUAL; e <- p_expr; return (x, t, e)
-      <+> do x <- p_name; (xs, ins) <- p_fsts; eat AT; out <- p_type; eat EQUAL; e <- p_expr; return (x, Arrow ins out, Lambda xs e)
+      do x <- p_name; eat EQUAL; e <- p_expr; return (x, e)
+      <+> do x <- p_name; xs <- p_formals; eat EQUAL; e <- p_expr; return (x, Lambda xs e)
     
     p_type =
       do eat INT; return (BaseType "Int") 
@@ -121,7 +121,7 @@ module Language.FunParser(funParser) where
       <+> do eat CHAR; return (BaseType "Char")
       <+> do x <- p_name; return (TVar x)
       <+> do eat BRA; t <- p_type; eat KET; return (TArray t)
-      <+> do eat LPAR; ins <- p_list0 p_type COMMA; eat RPAR; eat ARROW; out <- p_type; return (Arrow ins out)
+      <+> do eat LPAR; ins <- p_list0 p_type COMMA; eat RPAR; eat ARROW; out <- p_type; return (Arrow (TTuple ins) out)
 
     p_var =
       do n <- p_name; eat AT; t <- p_type; return (n, t)

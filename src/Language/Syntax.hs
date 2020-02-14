@@ -1,32 +1,33 @@
 module Language.Syntax where
 
-import Elements
 import Language.Types
 
 data Phrase = Calculate Expr
             | Define Defn
-            | Synth Ident HelperType
+            | Synth Ident Type
             deriving Show
 
-data Expr = Number Integer   
+data Expr = Number Integer
           | Character Char
           | Variable Ident  
-          | Apply Expr [Expr]    
-          | If Expr Expr Expr  
-          | Lambda [Ident] Expr 
-          | Let Defn Expr    
+          | Apply Expr [Expr]
+          | If Expr Expr Expr
+          | Lambda [Ident] Expr
+          | Let Defn Expr
+          | IFunction String Expr
+          | Hole
           | Empty
           deriving Show
 
-data Defn = Val Ident HelperType Expr
-          | Rec Ident HelperType Expr
+data Defn = Val Ident Expr
+          | Rec Ident Expr
           | PEx Ident [Expr] Expr
           | NEx Ident [Expr] Expr
           deriving Show
 
 type Ident = String
 
-def_lhs (Val x _ _) = x
-def_lhs (Rec x _ _) = x
+def_lhs (Val x _) = x
+def_lhs (Rec x _) = x
 def_lhs (PEx f _ _) = "pos_" ++ f
 def_lhs (NEx f _ _) = "neg_" ++ f

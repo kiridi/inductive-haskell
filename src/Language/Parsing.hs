@@ -206,7 +206,7 @@ dialogm syntax obey init =
       do text <- readFile f; 
 		st' <- load_file syntax obey st text; arg_loop st' args
     arg_loop st [] =
-      do {-read_eval_print syntax obey st;-} putStrLn ""
+      do read_eval_print syntax obey st; putStrLn ""
 
 read_eval_print :: (Show t) => 
 	Syntax t a -> (a -> s -> IO s) -> s -> IO ()
@@ -291,7 +291,7 @@ print_value v = (\ v -> "--> " ++ show v) $! v
 
 print_defn :: Show d => Environment d -> String -> String
 print_defn env x = 
-  (\ v -> "--- " ++ x ++ " = " ++ show v) $! (find env x)
+  (\ v -> "--- " ++ x ++ " :: " ++ show v) $! (find env x)
 
 printStrLn :: String -> IO ()
 printStrLn "" = putChar '\n'
