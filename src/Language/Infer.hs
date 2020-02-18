@@ -10,6 +10,8 @@ import Language.Types
 import Language.Syntax
 import Language.Environment
 
+import Elements
+
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
 
@@ -18,6 +20,8 @@ import Data.List (nub)
 import Data.Foldable (foldr)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+
+import Debug.Trace
 
 type TEnv = Environment Scheme
 
@@ -81,7 +85,7 @@ nullSubst :: Subst
 nullSubst = Map.empty
 
 compose :: Subst -> Subst -> Subst
-s1 `compose` s2 = Map.map (apply s1) s2 `Map.union` s1
+s1 `compose` s2 = s1 `Map.union` Map.map (apply s1) s2
 
 unify ::  Type -> Type -> Infer Subst
 unify (l `Arrow` r) (l' `Arrow` r')  = do
@@ -148,14 +152,14 @@ infer env ex = case ex of
     tvs <- replicateM (length vs) fresh
     let env' = foldl (\ te (tv, v) -> te `extend` (v, Forall [] tv)) env (zip tvs vs)
     (s, t) <- infer env' expr
-    return (s, apply s (Arrow (TTuple tvs) t)) 
+    return (s, apply s (Arrow (TTuple tvs) t))
 
   Apply e es -> do
     tv <- fresh
     (s1, t1) <- infer env e
     (ss, ts) <- inferListLTR env es
     s2 <- unify (apply ss t1) (Arrow ts tv)
-    return (ss `compose` s1, apply s2 tv)
+    return (s2 `compose` ss `compose` s1, apply s2 tv)
 
   Let (Val x e1) e2 -> do
     (s1, t1) <- infer env e1
@@ -172,24 +176,25 @@ infer env ex = case ex of
     s5 <- unify t2 t3
     return (s5 `compose` s4 `compose` s3 `compose` s2 `compose` s1, apply s5 t2)
 
-  -- Let (Rec x e1) e2 -> do
+  Let (Rec x e1) e2 -> do
+    nV <- fresh
+    let expEnv = env `extend` (x, generalize env nV)
+    (s1, t1) <- infer expEnv e1
+    let env' = apply s1 expEnv
+        t' = generalize env' t1
+    (s2, t2) <- infer (env' `extend` (x, t')) e2
+    return (s1 `compose` s2, t2)
 
-  -- IFunction name body -> do
-  --   tv <- fresh
-  --   env' <- env `extend` (name, Forall [] tv)
-  --   (s, t) <- infer env' expr
-  --   return 
-
-inferPrim :: TEnv -> [Expr] -> Type -> Infer (Subst, Type)
-inferPrim env l t = do
-  tv <- fresh
-  (s1, tf) <- foldM inferStep (nullSubst, id) l
-  s2 <- unify (apply s1 (tf tv)) t
-  return (s2 `compose` s1, apply s2 tv)
-  where
-  inferStep (s, tf) exp = do
-    (s', t) <- infer (apply s env) exp
-    return (s' `compose` s, tf . (Arrow t))
+inferDef :: TEnv -> Defn -> Infer (Subst, Type)
+inferDef tenv (Val x body) = do
+    (s1, t1) <- infer tenv body
+    return (s1, t1)
+    
+inferDef tenv (Rec x body) = do
+    nV <- fresh
+    let expEnv = tenv `extend` (x, generalize tenv nV)
+    (s1, t1) <- infer expEnv body
+    return (s1, t1)
 
 inferListLTR :: TEnv -> [Expr] -> Infer (Subst, Type)
 inferListLTR tenv exprs = foldM step (nullSubst, TTuple []) (reverse exprs)
@@ -200,11 +205,10 @@ inferListLTR tenv exprs = foldM step (nullSubst, TTuple []) (reverse exprs)
 inferExpr :: TEnv -> Expr -> Maybe Scheme
 inferExpr env = runInfer . infer env
 
-inferTop :: TEnv -> [(String, Expr)] -> Maybe TEnv
-inferTop env [] = Just env
-inferTop env ((name, ex):xs) = case inferExpr env ex of
-  Nothing -> Nothing
-  Just ty -> inferTop (extend env (name, ty)) xs
+
+
+inferSynth :: ProgInfo -> Defn -> Maybe (Scheme, ProgInfo)
+inferSynth = 
 
 normalize :: Scheme -> Scheme
 normalize (Forall ts body) = Forall (fmap snd ord) (normtype body)
@@ -225,3 +229,20 @@ normalize (Forall ts body) = Forall (fmap snd ord) (normtype body)
         Nothing -> error "type variable not in signature"
     normtype (TArray t) = TArray (normtype t)
     normtype (TTuple ts) = TTuple (map normtype ts)
+
+-- inferTop :: TEnv -> [(String, Expr)] -> Maybe TEnv
+-- inferTop env [] = Just env
+-- inferTop env ((name, ex):xs) = case inferExpr env ex of
+--   Nothing -> Nothing
+--   Just ty -> inferTop (extend env (name, ty)) xs
+
+-- inferPrim :: TEnv -> [Expr] -> Type -> Infer (Subst, Type)
+-- inferPrim env l t = do
+--   tv <- fresh
+--   (s1, tf) <- foldM inferStep (nullSubst, id) l
+--   s2 <- unify (apply s1 (tf tv)) t
+--   return (s2 `compose` s1, apply s2 tv)
+--   where
+--   inferStep (s, tf) exp = do
+--     (s', t) <- infer (apply s env) exp
+--     return (s' `compose` s, tf . (Arrow t))
