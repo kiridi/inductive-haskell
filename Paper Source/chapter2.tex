@@ -1,0 +1,60 @@
+\chapter{Background and related work}
+
+\indent In the previous chapter, we have informally introduced the concept of IP, presented its relevance and showcased our ideas. In this chapter, we first provide the reader with more background on IP (areas of research, approaches). We then switch to literature review, showcasing different IP systems and their relevance to ours. We finish the chapter by talking about the idea of function reuse.
+
+\section{Background on IP}
+\indent \indent Inductive programming has been around for almost half a century, with a lot of systems trying to tackle the problem of finding programs from examples from different angles. It is a subject that is placed at the crossroad between cognitive sciences, artificial intelligence, algorithm design and software development \cite{kitzelmannsurvey}. An interesting fact to note is that IP is a machine learning problem (learning from data) and moreover, in recent years it has gained attention because of the inherent transparency of its approach to learning, as opposed to the black box nature of statistical/neuronal approaches \cite{SchmidInductivePA}.
+\par IP has two main research areas:
+\begin{itemize}
+\item Inductive functional programming (IFP): IFP adresses the synthesis of recursive functional programs generalized from regularities in input-output examples \cite{gulwanietal}, using functional background information. Typically, the target language is a declarative one such as Haskell or Lisp.
+\item Inductive logical programming (ILP): ILP started as research on induction in a logical context \cite{gulwanietal}. It's aim is to construct a hypothesis \textit{h} which explain examples \textit{E} in terms of some background knowledge \textit{B} \cite{MUGGLETON1999283}.
+\end{itemize}
+\par As highlighted in the review by Kitzelmann \cite{kitzelmannsurvey}, there have been two main approaches to inductive programming (for both IFP and ILP):
+\begin{itemize}
+\item \textbf{analytical approach}: it's aim is not to exhaustively search for programs, but rather to exploit features in the input-output examples; the first systematic attempt was done by Summers' \textit{THESIS} \cite{thesis} system in 1977. He observed that using a few basic primitives and a fixed program grammar, a restricted class of recursive LISP programs that satisfy a set of input-output examples can be induced. His main idea was split into two parts: first, transform the examples into non-recursive programs (fragments or traces) that represent an approximation of each input-output example; then, create a recursive program that generalizes over those small programs. Because of the inherent restrictiveness of the primitives, the analytical approach saw little innovation in the following decade, but systems like \textit{IGOR1}, \textit{IGOR2} \cite{igor2} have built on Summers' work. Another analytical approach uses the idea of \textit{version space algebra}. Those work by analysing input-output traces and creating different hypothesis spaces, which are then combined using algebraic operators to induce programs. The analytical approach is also found in ILP, a well known example being Muggleton's \textit{Progol} \cite{progol}.
+\item \textbf{generate-and-test approach (GAT)}: with the advent of more powerful computers, enumerating the program space became a possibility; in GAT, examples are not used to actually construct the programs, but rather to test streams of possible programs, selected on some criteria from the program space. Compared to the analytical approach, GAT tends to be the more expressive approach, at the cost of higher computational time. Indeed, the \textit{ADATE} system, a GAT system that uses genetic programming techniques to create programs, is one of the most powerful IP system with regards to expressivity \cite{kitzelmannsurvey}. Another well known GAT system is Katayama's \textit{Magic Haskeller} \cite{mhask}, which uses type directed search and higher-order functions as background knowledge.
+\end{itemize}
+\indent \indent Usually, a systems will use a mixture of the two approaches, so as to explore multiple avenues for pruning. Our system is mainly GAT, but we explore and experiment with a some ideas commonly used in analytic approaches. We use a type-inference driven approach to pruning, and explore the possibility of example propagation as a means to disregard unwanted programs.
+
+\section{Related work}
+\par \indent We now present three systems that helped us develop our ideas and hypotheses and contrast them with our work.
+\subsection{Metagol}
+\indent \indent \textit{Metagol} \cite{metagol} is an ILP system that induces Prolog programs. It uses an idea called MIL, or meta-interpretative learning. MIL learns logic programs from examples and background knowledge by instantiating metarules. We present the three forms of background information in more detail:
+\begin{itemize}
+\item compiled background knowledge (CBK): those are small, first order Prolog programs that are deductively proved by the normal interpreter (think of the ancestor relationship).
+\item interpreted background knowledge (IBK): this is represented by higher-order formulas that are proven with the aid of a meta-interpreter (since Prolog does not allow clauses with higher-order predicates as variables); for example, we could describe \textit{map/3} using the following two clauses:\\ $map([],[],F) :- $ and $map([A|As],[B|Bs],F) :- F(A,B), map(As,Bs)$
+\item metarules: those are rules that enforce the form of the induced program's clauses; an example would be $P(a, b) :- Q(a, c), R(c, b)$, where upper case letters are existentially quantified variables (they will be replaced with CBK or IBK).
+\end{itemize}
+\par The way the hypothesis search works is as follows: try to prove the required atom using CBK; if that fails, fetch a metarule, and try to fill in the existentially quantified variables; continue until a valid hypothesis (one that satisfies the examples) is found. To note here is that \textit{Metagol} propagates examples, i.e. if we have say \textit{map} and some examples, we can infer a set of examples for the third argument (the functional one). This technique is used to prune incorrect programs from an early stage. All this process is wrapped in a depth-bounded search, so as to ensure the shortest program is found.
+Our paper has started as an experiment to see whether ideas from \textit{Metagol} could be transferred to a functional setting; hence, in the next chapters we use similar terminology, especially around metarules and background knowledge. However, our implementation treats IBK as a form of metarule. We also use a depth-bounded search in our algorithm, for similar reasons to \textit{Metagol}. Our system does not have example propagation for now, but we do discuss the pros and cons of having such a pruning mechanism (especially in the context of variable metarules and function reuse) and why such example propagation is very well fitted for ILP, but less so for IFP.
+\subsection{Magic Haskeller}
+\indent \indent Katayama's \textit{Magic Haskeller} \cite{mhask} is a GAT approach that uses type pruning and exhaustive search over the program space, using a set of background functions. Katayama argues that type pruning makes the search space manageable. One of the main innovation of the system was the addition of higher-order background functions which speeds up the searching process and helps simplify the output programs. The programs synthesized by the system are chains of function applications. Our system differs in the fact that our programs are modular, each function having the form of a specific metarule, which allows for function reuse. One of \textit{Magic Haskeller}'s limitations is the inability to provide user supplied background knowledge. Our approach enables a user to experiment with the background functions in a programmatic manner, and we also make it fairly easy for a user to change the metarules and hence the grammar of the programs. 
+\subsection{$\lambda^{2}$}
+\indent \indent \textit{$\lambda^{2}$} \cite{lambdasq} is an IFP system which combines GAT and analytical methods: the search is similar to \textit{Magic Haskeller}, in the way it uses higher order functions and explores the program space using type pruning, but differs in the fact that programs have a nested form (think of \textit{where} clauses in Haskell). However, such an approach does not allow function reuse, since an inner function can not use an "ancestor" function (infinite loop). Our paper tries to address this, exploring the possibility of creating non-nested programs and hence allowing function reuse. Our implementation has a few theoretical guarantees, one of them being the ability to change the metarules without breaking the algorithm. An interesting fact is that $\lambda^{2}$ uses example deduction in IFP, the process of generating new examples based on some deduction rules, similar to how \textit{Metagol} does it. We investigate the effectiveness of example deduction for our implementation, and we go beyond what is presented in \textit{$\lambda^{2}$} by investigating example deduction for other combinators (e.g. function composition).
+
+\section{Function reuse}
+\indent \indent Generally, most IP approaches tend to disregard the extra knowledge found during the synthesis process. In fact, systems like \textit{$\lambda^{2}$} and \textit{Magic Haskeller} make this impossible because of how the search is conducted. Some systems, like \textit{Igor 2} do have a limited form of it. This usually stems from what grammars the induced program use. One of our main interests has been the usefulness of function reuse by allowing a modular way of generating programs (that is, we create "standalone" functions that can then be pieced together like a puzzle). For example, consider the \textit{drop lasts} problem: given a non-empty list of lists, remove the last element of the outer list as well as the last elements of all the inner ones. The results of running our system using \textit{reverse} and \textit{tail} as background knowledge can is:
+
+\begin{exam}[\textit{droplasts} - no function reuse]
+\begin{lstlisting}[language=Haskell]
+target = f1.f2 
+f2 = reverse.f3
+f3 = map reverse 
+f1 = f2.f4   
+f4 = tail.f5
+f5 = map tail
+\end{lstlisting}
+\end{exam}
+
+However, if function reuse is enabled, not only do we get better computation time, but we also get a simpler program:
+
+\begin{exam}[\textit{droplasts} - function reuse]
+\begin{lstlisting}[language=Haskell]
+target = f1.f2 
+f2 = map f1
+f1 = reverse.f3
+f3 = tail.reverse
+\end{lstlisting}
+\end{exam}
+
+An interesting questions when considering function reuse is what kind of programs benefit from it, which we explore in chapter 6. 

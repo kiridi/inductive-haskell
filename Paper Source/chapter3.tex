@@ -1,0 +1,100 @@
+\chapter{Problem description}
+\indent \indent In the previous two chapters we have presented inductive programming as a subject and talked about program synthesis in an informal setting. Before presenting the system, we shall give our formalization of the program synthesis problem.
+
+\section{Abstract description of the problem}
+\theoremstyle{definition}
+\newtheorem{defn}{Definition}
+
+\theoremstyle{plain}
+\newtheorem{claim}{Claim}
+\newtheorem{thm}{Theorem}	
+
+\indent \indent A program synthesis system's (PSS) aim is to induce programs with respect to some sort of user provided specification. We call the output of the synthesis process \textit{induced program}, and the functions that are part of it \textit{induced functions}.
+\par Different PSS take various specifications as input. In this paper we consider two types of specification: background knowledge and input-output examples.
+
+\begin{defn}[\textbf{Background knowledge (BK)}]
+We define background knowledge to be information used during the synthesis process to invent programs. The BK completely determines the possible forms an induced program can have. More precisely, there are two types of BK:
+\begin{itemize}
+	\item \textit{Background functions}: those are either user provided functions or previously induced functions created during the synthesis process.
+	\item \textit{Metarules}: those are a set of rules that describe the forms of the induced functions;  they should be seen as templates that contain numbered place-holders ($ \fbox{$\alpha$}_{i} $) that will eventually be filled with background functions. 
+\end{itemize}
+\end{defn}
+\begin{exam}[Metarules]
+\indent \indent Conditional metarule: \textbf{if} $\fbox{$\alpha$}_{0}$ \textbf{then} $\fbox{$\alpha$}_{1}$ \textbf{else} $\fbox{$\alpha$}_{2}$. \\
+\indent Higher-order metarules: $\fbox{$\alpha$}_{0}$ \textbf{.} $\fbox{$\alpha$}_{0}$, \textbf{map $\fbox{$\alpha$}_{0}$}, \textbf{fold $\fbox{$\alpha$}_{0}$}, \textbf{filter $\fbox{$\alpha$}_{0}$}.
+\end{exam}
+\begin{exam}[Background functions]
+\begin{lstlisting}[language=Haskell]
+reverse xs = if xs == [] 
+             then [] 
+             else rev (tail xs) ++ [head xs]
+         
+addOne x = x + 1
+\end{lstlisting}
+\end{exam}
+
+\indent We say an induced function is \textit{complete} if its body contains no place-holders or \textit{incomplete} otherwise. 
+
+\begin{defn}[\textbf{Examples}]
+Examples are user provided input-output pairs that describes the aim of the induced program.
+We shall consider two types of examples:
+\begin{itemize}
+	\item Positive examples: we use the relation $in \rightarrow^{+} out$ to describe positive examples; this means that an induced program should produce the output $out$ if $in$ is given as the input;
+	\item Negative examples: we use the relation $in \rightarrow^{-} out$ to describe negative examples; this means that an induced program should not produce the output $out$ when $in$ is given as input;  one way to look at negative examples is that they try to remove ambiguity: for example, if we are trying to synthesize a program that reverses a list, if the positive examples are only lists of one element then another possible program is the identity function.
+\end{itemize}
+\end{defn}
+
+\begin{exam}[Positive and negative examples]
+Given the positive examples $[3,2,1] \rightarrow^{+} [1,2,3]$ and $[5, 4] \rightarrow^{+} [4, 5]$, and the negative examples $[1,3,2] \rightarrow^{-} [2,3,1]$ and $[5,4] \rightarrow^{-} [5,4]$ then the program we want to induce is likely to be a list sorting algorithm. Note that if we only look at the positive examples, another possible induced program is a a list reversing algorithm, but the negative example $[1,3,2] \rightarrow^{-} [2,3,1]$ removes this possibility.
+\end{exam}
+Something to note is that both the positive and the negative examples should have the same structure.
+
+\begin{defn}[\textbf{Satisfiability}]
+We say an induced function \textit{f} satisfies the relations $\rightarrow^{+}$ and $\rightarrow^{-}$ if:
+\begin{itemize}
+\item $\forall (in, out) \in \rightarrow^{+} . f(in) = out$ 
+\item $\forall (in, out) \in \rightarrow^{-} . f(in) \neq out$ 
+\end{itemize}
+\end{defn}
+
+\noindent We can now give the formulation for the program synthesis problem.
+\begin{defn}[\textbf{Induced program}]
+Given a set of metarules, background functions, positive and negative examples, a program synthesis system should create a set of complete induced functions whose form respects that of the metarules and one of the functions satisfies the positive and negative examples; we call that the \textit{target function}.
+\end{defn} 
+
+\section{Properties of the program space}
+In this section, we assume the set of metarules, the set of background functions,  $\rightarrow^{+}$ and $\rightarrow^{-}$ to be fixed. When we refer to an induced program, we refer to the induced program given those sets.
+
+\begin{defn}[Program space]
+Given a set of metarules and a set of background functions, we define program space to be the set of all the possible functions that can be induced using those. 
+\end{defn}
+
+\begin{defn}[\textbf{Specialisation step}]
+Let $f$ be an incomplete induced function. We call a specialisation step a substitution of the form $f[\beta \leftarrow \fbox{$\alpha$_{i}}]$, which denotes the fact that the $i^{th}$ place-holder in $f$ is replaced by the expression $\beta$. We write this as the relation $f \xrightarrow[\beta]{\fbox{$\alpha$}_{i}} f'$, where $f' = f[\beta \leftarrow \fbox{$\alpha$}_{i}]$ .
+\end{defn}
+
+\noindent The reason we do not allow $\beta$ to be a metarule if we are substituting a place-holder is that we want each incomplete induced function to become a complete one in a finite amount of specialisation steps. No expressivity is lost here, since a function place-holder can be replaced by another induced function, and that induced function could be a new one (that is, its associated expression is a metarule place-holder).
+
+\textbf{What else should I include here? Is this the right place for this section, or should i put it in the algorithm chapter?}
+
+\iffalse
+\begin{defn}[Ordering of induced programs]
+We say that an induced program $P_{2}$ is more concrete than another induced program $P_{1}$ if $P_{2} \setminus P_{1} = \{f_{2}\}$ and  $P_{1} \setminus P_{2} = \{f_{1}\}$ and $f_{1} \xrightarrow[\alpha]{\fbox{$\phi$}_{\,i}} f_{2}$. We write $P_{1} \preccurlyeq P_{2}$.
+\end{defn}
+\noindent Let $\preccurlyeq^{*}$ be the reflexive, transitive closure of $\preccurlyeq$, defined by: 
+\begin{itemize}
+\item $P \preccurlyeq^{*} P' \Leftrightarrow P = P'$ 
+\item $P \preccurlyeq^{*} P' \Leftrightarrow \exists P''. P \preccurlyeq^{*} P" \land P" \preccurlyeq P' $.
+\end{itemize}
+
+\begin{thm}
+$\preccurlyeq^{*}$ gives a partial order of the program space.
+\begin{proof}
+By definition, $\preccurlyeq^{*}$ is a reflexive and transitive relation.
+We need to prove it is also antisymmetric. \\
+Suppose $P \preccurlyeq^{*} P'$ and $P' \preccurlyeq^{*} P$. Suppose for a contradiction that $P \neq P'$. By the definition of the relation, we have $P'\, \setminus P = \{f_{2}\}$ and  $P \setminus P' = \{f_{1}\}$ and $f_{1} \xrightarrow[\alpha]{\fbox{$\phi$}_{\,i}} f_{2}$ and $f_{2} \xrightarrow[\beta]{\fbox{$\phi$}_{\,j}} f_{1}$, for some $\alpha$, $\beta$, $i$ and $j$. But this is impossible because we can't have that $f_{1}$ is more specialized that $f_{2}$ and $f_{2}$ is more specialized than $f_{1}$ (\textsc{MORE DETAIL HERE}).
+\end{proof}
+\end{thm} 
+
+\noindent This relation contains infinite chains, since we can replace a metarule with a new function that itself is just a metarule (and we can repeat this process infinitely many times). This will be important in the next chapter, since in the implementation of the system, searching needs to be done carefully.
+\fi

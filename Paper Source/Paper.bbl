@@ -1,0 +1,77 @@
+\begin{thebibliography}{10}
+
+\bibitem{cropperth}
+Andrew Cropper.
+\newblock {\em Efficiently learning efficient programs}.
+\newblock PhD thesis, Imperial College London, 2017.
+
+\bibitem{metagol}
+Andrew Cropper, Rolf Morel, and Stephen~H. Muggleton.
+\newblock Learning higher-order logic programs.
+\newblock 2019.
+
+\bibitem{lambdasq}
+John Feser, Swarat Chaudhuri, and Isil Dillig.
+\newblock Synthesizing data structure transformations from input-output
+  examples.
+\newblock {\em ACM SIGPLAN Notices}, 50:229--239, 06 2015.
+
+\bibitem{gulwanistem}
+Sumit Gulwani.
+\newblock Example-based learning in computer-aided stem education.
+\newblock {\em Communications of the ACM}, 57(8):70--80, August 2014.
+
+\bibitem{gulwani2012spreadsheet}
+Sumit Gulwani, William~R. Harris, and Rishabh Singh.
+\newblock Spreadsheet data manipulation using examples.
+\newblock volume~55, pages 97--105, January 2012.
+\newblock Invited to CACM Research Highlights.
+
+\bibitem{gulwanietal}
+Sumit Gulwani, Jos\'{e} Hern\'{a}ndez-Orallo, Emanuel Kitzelmann, Stephen~H.
+  Muggleton, Ute Schmid, and Benjamin Zorn.
+\newblock Inductive programming meets the real world.
+\newblock {\em Commun. ACM}, 58(11):90–99, October 2015.
+
+\bibitem{mhask}
+Susumu Katayama, 2005.
+
+\bibitem{igor2}
+Martin Kato, Emanuel Kitzelmann, and Ute Schmid.
+\newblock A unifying framework for analysis and evaluation of inductive
+  programming systems.
+\newblock {\em Proceedings of the 2nd Conference on Artificial General
+  Intelligence, AGI 2009}, 06 2009.
+
+\bibitem{kitzelmannsurvey}
+Emanuel Kitzelmann.
+\newblock Inductive programming: A survey of program synthesis techniques.
+\newblock 2009.
+
+\bibitem{deductive}
+Zohar Manna and Richard Waldinger.
+\newblock A deductive approach to program synthesis.
+\newblock {\em ACM Trans. Program. Lang. Syst.}, 2:90--121, 01 1980.
+
+\bibitem{progol}
+Stephen Muggleton.
+\newblock Inverse entailment and progol.
+\newblock {\em New Generation Computing}, 13(3), Dec 1995.
+
+\bibitem{MUGGLETON1999283}
+Stephen Muggleton.
+\newblock Inductive logic programming: Issues, results and the challenge of
+  learning language in logic.
+\newblock {\em Artificial Intelligence}, 114(1):283 -- 296, 1999.
+
+\bibitem{SchmidInductivePA}
+Ute Schmid.
+\newblock Inductive programming as approach to comprehensible machine learning.
+\newblock In {\em DKB/KIK@KI}, 2018.
+
+\bibitem{thesis}
+Phillip~D. Summers.
+\newblock A methodology for lisp program construction from examples.
+\newblock {\em J. ACM}, 24(1):161–175, January 1977.
+
+\end{thebibliography}
