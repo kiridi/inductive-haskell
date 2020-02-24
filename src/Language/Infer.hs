@@ -205,10 +205,8 @@ inferListLTR tenv exprs = foldM step (nullSubst, TTuple []) (reverse exprs)
 inferExpr :: TEnv -> Expr -> Maybe Scheme
 inferExpr env = runInfer . infer env
 
-
-
 inferSynth :: ProgInfo -> Defn -> Maybe (Scheme, ProgInfo)
-inferSynth = 
+inferSynth 
 
 normalize :: Scheme -> Scheme
 normalize (Forall ts body) = Forall (fmap snd ord) (normtype body)

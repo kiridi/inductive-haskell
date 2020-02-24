@@ -4,50 +4,35 @@ import Language.Types
 import Data.String
 import Data.Char
  
-data Metarule = MEmpty
-              | IF
-              | COMP
-              | MAP
-              | FOLD
-              | FILTER deriving Show
+newtype Metarule = Metarule {
+    name :: String,
+    body :: Expr,
+    nargs :: Int
+} deriving Show
 
-data FOF = FEmpty Type
-         | FOF String
+newtype IFunction = IFunction {
+    name :: String,
+    mrule :: Metarule,
+    holes :: [Type],
+    completes :: [String]
+}
 
--- TODO: break [FOF] in 2 lists, one for empty holes, one for full holes
-data IFunction = Incomplete String Metarule Type [FOF]
-               | Complete String Metarule Type [FOF]
+data IProgram = IProgram {
+    toDoStack :: [Defn],
+    doneStack :: [Defn]
+}
 
-data IProgram = IProgram [IFunction] [IFunction]
+type UniqueID = Int
+type Name = String
+type Metarules = [Metarule]
 
-instance Show FOF where
-    show (FEmpty t) = "FEmpty " ++ show t
-    show (FOF name) = 
-        (if isDigit (head name) then "gen" else "") ++ name
-
-instance Show IFunction where
-    show (Incomplete name mr t fofs) = 
-        (if isDigit (head name) then "gen" else "") ++ name ++ " = " ++ 
-        case mr of
-            MEmpty -> "Empty function, type:" ++ show t
-            IF -> "if " ++ show (fofs!!0) ++ " else " ++ show (fofs!!1) ++ "then" ++ show (fofs!!2)
-            COMP -> show (fofs!!0) ++ "." ++ show (fofs!!1)
-            MAP -> "map " ++ show (fofs!!0)
-            FOLD -> "fold " ++ show (fofs!!0)
-            FILTER -> "filter " ++ show (fofs!!0)
-    show (Complete name mr t fofs) = 
-        (show t) ++ "\n" ++ (if isDigit (head name) then "gen" else "") ++ name ++ " = " ++ 
-        case mr of
-            MEmpty -> "Empty function, type" ++ show t
-            IF -> "if " ++ show (fofs!!0) ++ " else " ++ show (fofs!!1) ++ "then" ++ show (fofs!!2)
-            COMP -> show (fofs!!0) ++ "." ++ show (fofs!!1)
-            MAP -> "map " ++ show (fofs!!0)
-            FOLD -> "fold " ++ show (fofs!!0)
-            FILTER -> "filter " ++ show (fofs!!0)
- 
-instance Show IProgram where
-    show (IProgram is cs) = (foldr addNl "" ((map show.reverse) cs)) ++ (foldr addNl "" ((map show.reverse) is)) ++ "\n----\n"
-        where addNl c str = c ++ "\n" ++ str
+data ProgInfo = ProgInfo {
+    ip :: IProgram,
+    mrs :: Metarules,
+    env :: Environment Type,
+    fDepG :: FuncDepGraph,
+    uid :: UniqueID
+}
 
 ----- Helpers
 
@@ -71,3 +56,18 @@ emptyProg targetName targetType = IProgram [Incomplete targetName MEmpty targetT
 hasMetarule :: IProgram -> Bool
 hasMetarule (IProgram ((Incomplete _ MEmpty _ _):_) _) = False
 hasMetarule _ = True
+
+updateTEnv :: Name -> Type -> ProgInfo -> ProgInfo
+updateFContext n t pinf = pinf { fCon = Map.insert n t (fCon pinf) }
+
+updateCounter :: ProgInfo -> ProgInfo
+updateCounter pinf = pinf { uid = (uid pinf) + 1 }
+
+popIncomplete :: ProgInfo -> Maybe (IFunction, ProgInfo)
+selectIncomplete pinf =
+    case pinf ip of 
+        IProgram (i:is) cs -> Just (i, pinf { ip = IProgram is cs })
+        IProgram [] cs -> Nothing
+
+pushIF :: IFunction -> ProgInfo -> ProgInfo
+pushIF ifun state = state { ip = addIFtoIP ifun (ip state) }

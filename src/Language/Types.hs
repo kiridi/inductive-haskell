@@ -20,4 +20,5 @@ instance Show Type where
     show (Arrow t1 t2) = show t1 ++ " -> " ++ show t2
 
 instance Show Scheme where
+    show (Forall [] t) = show t
     show (Forall fvs t) = "forall " ++ concat fvs ++ " . " ++ show t

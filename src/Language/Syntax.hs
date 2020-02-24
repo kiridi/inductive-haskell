@@ -14,9 +14,8 @@ data Expr = Number Integer
           | If Expr Expr Expr
           | Lambda [Ident] Expr
           | Let Defn Expr
-          | IFunction String Expr
           | Hole
-          | Empty
+          | Empty 
           deriving Show
 
 data Defn = Val Ident Expr
@@ -31,3 +30,6 @@ def_lhs (Val x _) = x
 def_lhs (Rec x _) = x
 def_lhs (PEx f _ _) = "pos_" ++ f
 def_lhs (NEx f _ _) = "neg_" ++ f
+
+getName (Val n _) = n
+getName (Rec n _) = n

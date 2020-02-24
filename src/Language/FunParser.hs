@@ -34,7 +34,7 @@ module Language.FunParser(funParser) where
           ARROW -> "=>"; VBAR -> "|"; DOT -> "."; OPEN -> "open"; 
           BADTOK c -> [c]; 
 
-          PEX -> "PEX"; NEX -> "NEX"; SYNTH -> "SYNTH"; AT -> "@"; 
+          PEX -> "PEx"; NEX -> "NEx"; SYNTH -> "Synthesize"; AT -> "@"; 
           INT -> "Int"; BOOL -> "Bool" ; CHAR -> "Char"
     
     kwlookup = 
@@ -43,7 +43,7 @@ module Language.FunParser(funParser) where
           ("rec", REC), ("val", VAL), ("lambda", LAMBDA), ("while", WHILE), 
           ("do", DO), ("orelse", ORELSE), ("array", ARRAY), ("open", OPEN),
           ("div", IDENT MULOP "div"), ("mod", IDENT MULOP "mod"), 
-          ("PEX", PEX), ("NEX", NEX), ("SYNTH", SYNTH), ("@", AT),
+          ("PEx", PEX), ("NEx", NEX), ("Synthesize", SYNTH), ("@", AT),
           ("Int", INT), ("Bool", BOOL), ("Char", CHAR)]
     
     lexer =

@@ -75,12 +75,10 @@ elab (Rec x _) env =
   error "RHS of letrec must be a lambda"
 
 addSignature :: Defn -> TEnv -> TEnv
-addSignature (Val name body) tenv = 
-  case runInfer $ infer tenv body of
-    Nothing -> error ("Type error when trying to define " ++ name)
-    Just t -> define tenv name t
---addSignature (Rec name body) tenv = define tenv name (runInfer $ infer tenv body)
-addSignature _ tenv = tenv
+addSignature def tenv = 
+  case runInfer $ inferDef tenv def of
+    Nothing -> error ("Type error when trying to define " ++ (getName def))
+    Just t -> define tenv (getName def) t
 
 addExample :: Defn -> VEnv -> EEnv -> EEnv
 addExample (PEx name ins out) venv eenv = 
@@ -92,7 +90,7 @@ addExample (PEx name ins out) venv eenv =
 
 addExample (NEx name ins out) venv eenv = 
   case maybe_find eenv name of
-    Nothing           -> define eenv name ([], [Neg eins eout])
+    Nothing         -> define eenv name ([], [Neg eins eout])
     Just (pos, neg) -> define eenv name (pos, (Neg eins eout) : neg)
   where eins = map (\ e -> eval e venv) ins
         eout = eval out venv
@@ -196,8 +194,8 @@ init_tenv =
     ("<=", Forall [] $ Arrow (TTuple [BaseType "Int", BaseType "Int"]) (BaseType "Bool")),
     (">", Forall [] $ Arrow (TTuple [BaseType "Int", BaseType "Int"]) (BaseType "Bool")),
     (">=", Forall [] $ Arrow (TTuple [BaseType "Int", BaseType "Int"]) (BaseType "Bool")),
-    ("=", Forall [] $ Arrow (TTuple [BaseType "Int", BaseType "Int"]) (BaseType "Bool")),
-    ("<>", Forall [] $ Arrow (TTuple [BaseType "Int", BaseType "Int"]) (BaseType "Bool")),
+    ("=", Forall ["a"] $ Arrow (TTuple [TVar "a", TVar "a"]) (BaseType "Bool")),
+    ("<>", Forall ["a"] $ Arrow (TTuple [TVar "a", TVar "a"]) (BaseType "Bool")),
     ("head", Forall ["a"] $ Arrow (TTuple [TArray (TVar "a")]) (TVar "a")),
     ("tail", Forall ["a"] $ Arrow (TTuple [TArray (TVar "a")]) (TArray (TVar "a"))),
     (":", Forall ["a"] $ Arrow (TTuple [TVar "a", TArray (TVar "a")]) (TArray (TVar "a"))),
@@ -207,15 +205,14 @@ init_tenv =
     ("isUpper", Forall [] $ Arrow (TTuple [TArray (BaseType "Char")]) (BaseType "Bool")),
     ("isDigit", Forall [] $ Arrow (TTuple [TArray (BaseType "Char")]) (BaseType "Bool")),
     ("isAlpha", Forall [] $ Arrow (TTuple [TArray (BaseType "Char")]) (BaseType "Bool"))]
-    --pureprim "list" (\ xs -> foldr Cons Nil xs),
-    -- pureprim "map" (\[Function f, xs] -> mapply f xs),
-    -- pureprim "filter" (\[Function p, xs] -> fapply p xs)]
 
 obey :: Phrase -> (VEnv, TEnv, EEnv) -> (String, (VEnv, TEnv, EEnv))
 
 obey (Calculate exp) (venv, tenv, eenv) =
-  (print_value (eval exp venv), (venv, tenv, eenv))
-
+  case inferExpr tenv exp of
+    Nothing -> error "Bad type"
+    Just sch -> (print_value (eval exp venv) ++ " :: " ++ show sch, (venv, tenv, eenv))
+  
 obey (Define def) (venv, tenv, eenv) =
   let x = def_lhs def in
   let venv' = if isEx def then venv else elab def venv in
@@ -233,8 +230,8 @@ obey (Define def) (venv, tenv, eenv) =
 --         tenv'          = define tenv name typ
 --         initProg       = (emptyProg name typ, (metarules, bkfof, emptyGraph, 0))
 
--- metarules :: [Metarule]
--- metarules = [MAP, COMP, FILTER]
+metarules :: [Expr]
+metarules = [MAP, COMP, FILTER]
 
 -- check :: VEnv -> EEnv -> (IProgram, State) -> Bool
 -- check venv eenv (IProgram [] cs, state) = --trace (show $ IProgram [] cs)
