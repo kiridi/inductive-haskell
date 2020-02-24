@@ -7,7 +7,7 @@
 
 \theoremstyle{plain}
 \newtheorem{claim}{Claim}
-\newtheorem{thm}{Theorem}	
+\newtheorem{thm}{Theorem}
 
 \indent \indent A program synthesis system's (PSS) aim is to induce programs with respect to some sort of user provided specification. We call the output of the synthesis process \textit{induced program}, and the functions that are part of it \textit{induced functions}.
 \par Different PSS take various specifications as input. In this paper we consider two types of specification: background knowledge and input-output examples.
@@ -16,7 +16,7 @@
 We define background knowledge to be information used during the synthesis process to invent programs. The BK completely determines the possible forms an induced program can have. More precisely, there are two types of BK:
 \begin{itemize}
 	\item \textit{Background functions}: those are either user provided functions or previously induced functions created during the synthesis process.
-	\item \textit{Metarules}: those are a set of rules that describe the forms of the induced functions;  they should be seen as templates that contain numbered place-holders ($ \fbox{$\alpha$}_{i} $) that will eventually be filled with background functions. 
+	\item \textit{Metarules}: those are a set of rules that describe the forms of the induced functions;  they should be seen as templates that contain numbered place-holders ($ \fbox{$\alpha$}_{i} $) that will eventually be filled with background functions.
 \end{itemize}
 \end{defn}
 \begin{exam}[Metarules]
@@ -25,15 +25,15 @@ We define background knowledge to be information used during the synthesis proce
 \end{exam}
 \begin{exam}[Background functions]
 \begin{lstlisting}[language=Haskell]
-reverse xs = if xs == [] 
-             then [] 
+reverse xs = if xs == []
+             then []
              else rev (tail xs) ++ [head xs]
-         
+
 addOne x = x + 1
 \end{lstlisting}
 \end{exam}
 
-\indent We say an induced function is \textit{complete} if its body contains no place-holders or \textit{incomplete} otherwise. 
+\indent We say an induced function is \textit{complete} if its body contains no place-holders or \textit{incomplete} otherwise.
 
 \begin{defn}[\textbf{Examples}]
 Examples are user provided input-output pairs that describes the aim of the induced program.
@@ -52,21 +52,62 @@ Something to note is that both the positive and the negative examples should hav
 \begin{defn}[\textbf{Satisfiability}]
 We say an induced function \textit{f} satisfies the relations $\rightarrow^{+}$ and $\rightarrow^{-}$ if:
 \begin{itemize}
-\item $\forall (in, out) \in \rightarrow^{+} . f(in) = out$ 
-\item $\forall (in, out) \in \rightarrow^{-} . f(in) \neq out$ 
+\item $\forall (in, out) \in \rightarrow^{+} . f(in) = out$
+\item $\forall (in, out) \in \rightarrow^{-} . f(in) \neq out$
 \end{itemize}
 \end{defn}
+
+\ac{todo}
+\begin{defn}[\textbf{Hypothesis space / program space}]
+\end{defn}
+
 
 \noindent We can now give the formulation for the program synthesis problem.
 \begin{defn}[\textbf{Induced program}]
 Given a set of metarules, background functions, positive and negative examples, a program synthesis system should create a set of complete induced functions whose form respects that of the metarules and one of the functions satisfies the positive and negative examples; we call that the \textit{target function}.
-\end{defn} 
+\end{defn}
+
+
+\ac{a different suggestion below}
+\noindent We can now give the formulation for the program synthesis problem.
+\begin{defn}[\textbf{Inductive Haskell problem}]
+Given:
+
+\begin{itemize}
+    \item a set of positive input/output examples $E^+ = \{(x_i,y_i),\dots, (x_n,y_n)\}$
+    \item a set of negative input/output examples $E^- = \{(x_i,y_i),\dots, (x_n,y_n)\}$
+    \item a hypothesis space $\mathcal{H}_{BK,M}$ defined by $BK$ and $M$
+\end{itemize}
+
+\noindent
+The \emph{Inductive Haskell problem} is to find a hypothesis $H \in \mathcal {H}$ such that:
+
+\begin{itemize}
+    \item $\forall (x,y) \in E^+ \; H(x) = y$
+    \item $\forall (x,y) \in E^- \; H(x) \neq y$
+\end{itemize}
+
+\noindent
+We call $H$ a \emph{solution} to the Inductive Haskell problem.
+\end{defn}
+
+\section{Why invent and reuse functions?}
+
+\ac{motivate it here}
+
+\begin{defn}[\textbf{Hypothesis space size}]
+Given a set of metarules $M$ and a set of background functions $B$, and a maximum program size $N$, the the size of the inductive Haskeller hypothesis space is
+\ac{todo here - look at http://andrewcropper.com/pubs/aaai20-forgetgol.pdf}
+\end{defn}
+
+\ac{talk about how reuse would increase the branching factor but decrease the depth e.g. thm1 of http://andrewcropper.com/pubs/mlj19-metaho.pdf}
+
 
 \section{Properties of the program space}
 In this section, we assume the set of metarules, the set of background functions,  $\rightarrow^{+}$ and $\rightarrow^{-}$ to be fixed. When we refer to an induced program, we refer to the induced program given those sets.
 
 \begin{defn}[Program space]
-Given a set of metarules and a set of background functions, we define program space to be the set of all the possible functions that can be induced using those. 
+Given a set of metarules and a set of background functions, we define program space to be the set of all the possible functions that can be induced using those.
 \end{defn}
 
 \begin{defn}[\textbf{Specialisation step}]
@@ -81,9 +122,9 @@ Let $f$ be an incomplete induced function. We call a specialisation step a subst
 \begin{defn}[Ordering of induced programs]
 We say that an induced program $P_{2}$ is more concrete than another induced program $P_{1}$ if $P_{2} \setminus P_{1} = \{f_{2}\}$ and  $P_{1} \setminus P_{2} = \{f_{1}\}$ and $f_{1} \xrightarrow[\alpha]{\fbox{$\phi$}_{\,i}} f_{2}$. We write $P_{1} \preccurlyeq P_{2}$.
 \end{defn}
-\noindent Let $\preccurlyeq^{*}$ be the reflexive, transitive closure of $\preccurlyeq$, defined by: 
+\noindent Let $\preccurlyeq^{*}$ be the reflexive, transitive closure of $\preccurlyeq$, defined by:
 \begin{itemize}
-\item $P \preccurlyeq^{*} P' \Leftrightarrow P = P'$ 
+\item $P \preccurlyeq^{*} P' \Leftrightarrow P = P'$
 \item $P \preccurlyeq^{*} P' \Leftrightarrow \exists P''. P \preccurlyeq^{*} P" \land P" \preccurlyeq P' $.
 \end{itemize}
 
@@ -94,7 +135,7 @@ By definition, $\preccurlyeq^{*}$ is a reflexive and transitive relation.
 We need to prove it is also antisymmetric. \\
 Suppose $P \preccurlyeq^{*} P'$ and $P' \preccurlyeq^{*} P$. Suppose for a contradiction that $P \neq P'$. By the definition of the relation, we have $P'\, \setminus P = \{f_{2}\}$ and  $P \setminus P' = \{f_{1}\}$ and $f_{1} \xrightarrow[\alpha]{\fbox{$\phi$}_{\,i}} f_{2}$ and $f_{2} \xrightarrow[\beta]{\fbox{$\phi$}_{\,j}} f_{1}$, for some $\alpha$, $\beta$, $i$ and $j$. But this is impossible because we can't have that $f_{1}$ is more specialized that $f_{2}$ and $f_{2}$ is more specialized than $f_{1}$ (\textsc{MORE DETAIL HERE}).
 \end{proof}
-\end{thm} 
+\end{thm}
 
 \noindent This relation contains infinite chains, since we can replace a metarule with a new function that itself is just a metarule (and we can repeat this process infinitely many times). This will be important in the next chapter, since in the implementation of the system, searching needs to be done carefully.
 \fi

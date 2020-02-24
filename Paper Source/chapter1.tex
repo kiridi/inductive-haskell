@@ -12,30 +12,70 @@
 \indent
 \indent Inductive programming (IP) - also known as program synthesis or example based learning - is a subfield that lies at the intersection of several computer science topics (machine learning, artificial intelligence, algorithm design) and is a form of automatic programming. As opposed to deductive programming \cite{deductive}, another automatic programming approach, where one starts with a full specification of the target program, IP tackles the problem starting with an incomplete specification and tries to generalize that into a program \cite{cropperth}. More often than not, that incomplete specification is represented by examples, so we can informally define inductive programming to be the process of creating programs from examples using a limited amount of background information.
 
+\ac{Just add a bit of fluff text around this example to introduce it a bit smoother}
 \begin{exam}[Possible instance of the IP problem]
 \textit{Input}: The definitions of \textit{map} and \textit{increment} and the examples $f([1,2,3] = [2,3,4])$ and $f([5,6]) = [6,7])$.
 \\
 \textit{Output}: The definition $f = map$ $increment$. %
 \end{exam}
 
-\par The appeal of IP,  as opposed to other ML techniques, lies in the fact that IP approaches require only a handful of examples and are completely transparent. This however, does not come without pitfalls: if the examples are not representative enough, we might not get the program we expected. The two main directions in IP have been inductive logic programming (ILP) and inductive functional programming (IFP), but a lot of the core ideas are shared between the two. 
-\par As noted in the survey by Gulwani et al \cite{gulwanietal}, one of the main areas of research in IP has been end-user programming. More often than not, an application will be used by a non-programmer, and hence that user will probably not be able to write scripts that make the interaction with that application easier. IP tries to offer a solution to that problem: the user could supply a (small) amount of information, such as a list of examples that describe the task, and an IP system could generate a small script that automates the task at hand. Perhaps one of the most noteworthy applications of this idea is in the \textit{MS Excel} plug-in \textit{Flash Fill} (\cite{gulwani2012spreadsheet}). Its task is to induce a program that generalizes some spreadsheet related operation, while only being given a few examples (e.g. separate the first name from the second name if the full name is given as input). Another researched area is computer-aided education and ways in which IP can help improve programming skills. As noted by Gulwani \cite{gulwanistem}, the example based background information used in IP shares some similarities to how humans learn from examples. Hence, tasks such as problem generation, solution generation and feedback generation could be automated using IP techniques.
+\ac{The appeal of ILP .... <- that text does not sound right. IP is not a ML technique, more of a problem.
+I would rephrase as ``One of the key challenges of IP is the need to learn from small numbers of training examples, which mostly rules out statistical machine learning approaches, such as SVMS and neural networks ...''}
+
+\par The appeal of IP,  as opposed to other ML techniques, lies in the fact that IP approaches require only a handful of examples and are completely transparent. This however, does not come without pitfalls: if the examples are not representative enough, we might not get the program we expected. The two main directions in IP have been inductive logic programming (ILP) and inductive functional programming (IFP), but a lot of the core ideas are shared between the two.
+\par As noted in the survey by Gulwani et al \cite{gulwanietal}, one of the main areas of research in IP has been end-user programming. More often than not, an application will be used by a non-programmer, and hence that user will probably not be able to write scripts that make the interaction with that application easier. IP tries to offer a solution to that problem: the user could supply a (small) amount of information, such as a list of examples that describe the task, and an IP system could generate a small script that automates the task at hand. Perhaps one of the most noteworthy applications of this idea is in the \textit{MS Excel} plug-in \textit{Flash Fill} (\cite{gulwani2012spreadsheet}). Its task is to induce a program that generalizes some spreadsheet related operation, while only being given a few examples (e.g. separate the first name from the second name if the full name is given as input).
+\ac{Give an example of flashfill}
+Another researched area is computer-aided education and ways in which IP can help improve programming skills. As noted by Gulwani \cite{gulwanistem}, the example based background information used in IP shares some similarities to how humans learn from examples. Hence, tasks such as problem generation, solution generation and feedback generation could be automated using IP techniques.
 
 \section{Motivation}
-\indent \indent While some ILP systems have explored the idea of reusing functions already synthesized during the program induction process (such as \textit{metagol} and [WHAT OTHER SYSTEMS HAVE?]), function reuse in the IFP context has not been thoroughly explored [CAN I MAKE SUCH A CLAIM?]. More specifically, we are interested in the following questions concerning it:
+
+\paragraph{Talk about function/predicate invention}
+\ac{Talk about predicate and function invention}
+
+
+\paragraph{Talk about function/predicate reuse}
+\ac{Talk about predicate and function reuse}
+
+While some ILP systems have explored the idea of reusing functions already synthesized during the program induction process (such as \textit{metagol} and [WHAT OTHER SYSTEMS HAVE?]),
+\ac{Metagol, Hexmil, and to a lesser extend DILP and ILASP}.
+function reuse in the IFP context has not been thoroughly explored [CAN I MAKE SUCH A CLAIM?]. \ac{I make the claim in my thesis, which you can cite http://andrewcropper.com/pubs/phd-thesis.pdf (page 19)}
+
+\ac{
+Moreover, even though predicate invention and reuse has been claimed as useful, to our knowledge, there has been no work that empirically demonstrates that it is, nor any work discussing when it may be useful.
+To address this limitation, in this work, we are interesting in the following research questions:
+}
+
+% More specifically, we are interested in the following questions concerning it:
 \begin{itemize}
-\item is modularity (breaking the induced program into lots of small programs) of the induced programs worth then additional computational time, and how does it help with function reuse?
-\item can it speed up the computation time by finding smaller programs?
-\item how important is the allowed grammar of the induced programs, and how does it restrict function reuse?
-\item what classes of programs benefit from it?
+\item \ac{can function reuse improve learning performance, both in terms of predictive accuracies and learning times}
+\item is modularity (breaking the induced program into lots of small programs) of the induced programs worth then additional computational time, and how does it help with function reuse? \ac{not interesting}
+\item can it speed up the computation time by finding smaller programs? \ac{stated above}
+\item how important is the allowed grammar of the induced programs, and how does it restrict function reuse? \ac{not interesting}
+\item what classes of programs benefit from it? \ac{imprecise}
+% \item is modularity (breaking the induced program into lots of small programs) of the induced programs worth then additional computational time, and how does it help with function reuse? \ac{not interesting}
 \end{itemize}
-\indent \indent Another point that prompted the development of our system is that most systems rarely provide a straightforward way to to change the background knowledge that is used when inducing programs.  This in turn creates two problems: it makes it harder for the end user to interact with the system and it hinders experimentation. Those two points (function reuse and easily changeable background knowledge) represent the starting point for the system we have developed.
+
+\ac{
+The answer to this question is not obvious.
+Although one can easily construct scenarios where function reuse reduces the size of a program (which should make it easier to learn (CITE some of my papers), it is unclear whether the additional computation time is too much <- make this sound better}
+
+\indent \indent Another point that prompted the development of our system is that most systems rarely provide a straightforward way to to change the background knowledge that is used when inducing programs.  This in turn creates two problems: it makes it harder for the end user to interact with the system and it hinders experimentation. Those two points (function reuse and easily changeable background knowledge) represent the starting point for the system we have developed. \ac{not interesting}
 
 \section{Contributions}
+
+\ac{you main contribution is knowledge, not an implementation, i.e. the point of the work is to explore whether (and when) function reuse helps.
+You should rephrase this bit.
+}
+
+\ac{your second contribution is the implementation, and is simply a necessity to explore your idea.
+What you can do is add a table which compares your system with Metagol, Magichaskeller, and Lambasquared.
+You can then clearly show what your system does differently
+}
+
 \indent \indent One of our main contributions is the introduction of a new system, called \textit{FReuse}, which draws ideas from existing systems, but uses a modular approach for inducing programs. This in turn allows us to test the function reuse hypothesis and explore its implications. We adopt notation used in \textit{metagol}, and draw from ideas present in other system (\cite{lambdasq}, \cite{mhask}). The system is used as a testing ground for the function reuse hypothesis, but it also creates an environment in which new ideas can be tested depending on what background information is supplied. Another point we explore is how the supplied knowledge affects the learning process and makes function reuse useful.
 
 \section{Structure of the report}
-\indent \indent The rest of the paper is structured as follows: 
+\indent \indent The rest of the paper is structured as follows:
 \begin{itemize}
 \item \textbf{chapter 2}: presents background on IP and a variety of other systems.
 \item \textbf{chapter 3}: presents a formal framework for describing the inductive programming problem.
@@ -43,6 +83,6 @@
 \item \textbf{chapter 5}: presents implementation details and a detailed example of how \textit{FReuse} induces programs.
 \item \textbf{chapter 6}: explores the role of function reuse and the general capabilities of the system as well as its possible uses.
 \item \textbf{chapter 7}: presents the conclusions, limitations, possible improvements and extensions of the project.
-\end{itemize} 
+\end{itemize}
 
 

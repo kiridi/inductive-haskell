@@ -28,19 +28,23 @@
 \par The way the hypothesis search works is as follows: try to prove the required atom using CBK; if that fails, fetch a metarule, and try to fill in the existentially quantified variables; continue until a valid hypothesis (one that satisfies the examples) is found. To note here is that \textit{Metagol} propagates examples, i.e. if we have say \textit{map} and some examples, we can infer a set of examples for the third argument (the functional one). This technique is used to prune incorrect programs from an early stage. All this process is wrapped in a depth-bounded search, so as to ensure the shortest program is found.
 Our paper has started as an experiment to see whether ideas from \textit{Metagol} could be transferred to a functional setting; hence, in the next chapters we use similar terminology, especially around metarules and background knowledge. However, our implementation treats IBK as a form of metarule. We also use a depth-bounded search in our algorithm, for similar reasons to \textit{Metagol}. Our system does not have example propagation for now, but we do discuss the pros and cons of having such a pruning mechanism (especially in the context of variable metarules and function reuse) and why such example propagation is very well fitted for ILP, but less so for IFP.
 \subsection{Magic Haskeller}
-\indent \indent Katayama's \textit{Magic Haskeller} \cite{mhask} is a GAT approach that uses type pruning and exhaustive search over the program space, using a set of background functions. Katayama argues that type pruning makes the search space manageable. One of the main innovation of the system was the addition of higher-order background functions which speeds up the searching process and helps simplify the output programs. The programs synthesized by the system are chains of function applications. Our system differs in the fact that our programs are modular, each function having the form of a specific metarule, which allows for function reuse. One of \textit{Magic Haskeller}'s limitations is the inability to provide user supplied background knowledge. Our approach enables a user to experiment with the background functions in a programmatic manner, and we also make it fairly easy for a user to change the metarules and hence the grammar of the programs. 
+\indent \indent Katayama's \textit{Magic Haskeller} \cite{mhask} is a GAT approach that uses type pruning and exhaustive search over the program space, using a set of background functions. Katayama argues that type pruning makes the search space manageable. One of the main innovation of the system was the addition of higher-order background functions which speeds up the searching process and helps simplify the output programs. The programs synthesized by the system are chains of function applications. Our system differs in the fact that our programs are modular, each function having the form of a specific metarule, which allows for function reuse. One of \textit{Magic Haskeller}'s limitations is the inability to provide user supplied background knowledge. Our approach enables a user to experiment with the background functions in a programmatic manner, and we also make it fairly easy for a user to change the metarules and hence the grammar of the programs.
 \subsection{$\lambda^{2}$}
 \indent \indent \textit{$\lambda^{2}$} \cite{lambdasq} is an IFP system which combines GAT and analytical methods: the search is similar to \textit{Magic Haskeller}, in the way it uses higher order functions and explores the program space using type pruning, but differs in the fact that programs have a nested form (think of \textit{where} clauses in Haskell). However, such an approach does not allow function reuse, since an inner function can not use an "ancestor" function (infinite loop). Our paper tries to address this, exploring the possibility of creating non-nested programs and hence allowing function reuse. Our implementation has a few theoretical guarantees, one of them being the ability to change the metarules without breaking the algorithm. An interesting fact is that $\lambda^{2}$ uses example deduction in IFP, the process of generating new examples based on some deduction rules, similar to how \textit{Metagol} does it. We investigate the effectiveness of example deduction for our implementation, and we go beyond what is presented in \textit{$\lambda^{2}$} by investigating example deduction for other combinators (e.g. function composition).
 
+\section{Function/predicate invention}
+\ac{http://andrewcropper.com/pubs/phd-thesis.pdf (page 19)}
+
 \section{Function reuse}
+
 \indent \indent Generally, most IP approaches tend to disregard the extra knowledge found during the synthesis process. In fact, systems like \textit{$\lambda^{2}$} and \textit{Magic Haskeller} make this impossible because of how the search is conducted. Some systems, like \textit{Igor 2} do have a limited form of it. This usually stems from what grammars the induced program use. One of our main interests has been the usefulness of function reuse by allowing a modular way of generating programs (that is, we create "standalone" functions that can then be pieced together like a puzzle). For example, consider the \textit{drop lasts} problem: given a non-empty list of lists, remove the last element of the outer list as well as the last elements of all the inner ones. The results of running our system using \textit{reverse} and \textit{tail} as background knowledge can is:
 
 \begin{exam}[\textit{droplasts} - no function reuse]
 \begin{lstlisting}[language=Haskell]
-target = f1.f2 
+target = f1.f2
 f2 = reverse.f3
-f3 = map reverse 
-f1 = f2.f4   
+f3 = map reverse
+f1 = f2.f4
 f4 = tail.f5
 f5 = map tail
 \end{lstlisting}
@@ -50,11 +54,11 @@ However, if function reuse is enabled, not only do we get better computation tim
 
 \begin{exam}[\textit{droplasts} - function reuse]
 \begin{lstlisting}[language=Haskell]
-target = f1.f2 
+target = f1.f2
 f2 = map f1
 f1 = reverse.f3
 f3 = tail.reverse
 \end{lstlisting}
 \end{exam}
 
-An interesting questions when considering function reuse is what kind of programs benefit from it, which we explore in chapter 6. 
+An interesting questions when considering function reuse is what kind of programs benefit from it, which we explore in chapter 6.
