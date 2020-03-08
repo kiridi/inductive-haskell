@@ -76,9 +76,9 @@ elab (Rec x _) env =
 
 addSignature :: Defn -> TEnv -> TEnv
 addSignature def tenv = 
-  case runInfer $ inferDef tenv def of
+  case runInfer $ inferDef tenv def Nothing of
     Nothing -> error ("Type error when trying to define " ++ (getName def))
-    Just t -> define tenv (getName def) t
+    Just (t, _, _) -> define tenv (getName def) t
 
 addExample :: Defn -> VEnv -> EEnv -> EEnv
 addExample (PEx name ins out) venv eenv = 
@@ -209,9 +209,9 @@ init_tenv =
 obey :: Phrase -> (VEnv, TEnv, EEnv) -> (String, (VEnv, TEnv, EEnv))
 
 obey (Calculate exp) (venv, tenv, eenv) =
-  case inferExpr tenv exp of
+  case inferExpr tenv exp Nothing of
     Nothing -> error "Bad type"
-    Just sch -> (print_value (eval exp venv) ++ " :: " ++ show sch, (venv, tenv, eenv))
+    Just (sch, _, _) -> (print_value (eval exp venv) ++ " :: " ++ show sch, (venv, tenv, eenv))
   
 obey (Define def) (venv, tenv, eenv) =
   let x = def_lhs def in
@@ -230,8 +230,8 @@ obey (Define def) (venv, tenv, eenv) =
 --         tenv'          = define tenv name typ
 --         initProg       = (emptyProg name typ, (metarules, bkfof, emptyGraph, 0))
 
-metarules :: [Expr]
-metarules = [MAP, COMP, FILTER]
+-- metarules :: [Expr]
+-- metarules = [MAP, COMP, FILTER]
 
 -- check :: VEnv -> EEnv -> (IProgram, State) -> Bool
 -- check venv eenv (IProgram [] cs, state) = --trace (show $ IProgram [] cs)

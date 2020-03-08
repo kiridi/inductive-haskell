@@ -33,10 +33,10 @@ returnFailure = MaybeT $ return Nothing
 
 type Subst = Map.Map Name Type
 
-runInfer :: Infer (Subst, Type) -> Maybe Scheme
+runInfer :: Infer (Subst, Type, Maybe [Name], Expr) -> Maybe (Scheme, Maybe [Name], Expr)
 runInfer m = case evalState (runMaybeT m) initUnique of
   Nothing -> Nothing
-  Just res -> Just $ closeOver res
+  Just (s, t, fs, newE) -> Just $ (closeOver (s, t), fs, newE)  
 
 closeOver :: (Map.Map Name Type, Type) -> Scheme
 closeOver (sub, ty) = normalize sc
@@ -134,79 +134,94 @@ generalize :: TEnv -> Type -> Scheme
 generalize env t  = Forall as t
   where as = Set.toList $ ftv t `Set.difference` ftv env
 
-lookupEnv :: TEnv -> Name -> Infer (Subst, Type)
-lookupEnv env name = do 
-  t <- instantiate (find env name)
-  returnInfer (nullSubst, t)
+lookupEnv :: TEnv -> Name -> Infer Type
+lookupEnv env name = instantiate (find env name)
 
-infer :: TEnv -> Expr -> Infer (Subst, Type)
-infer env ex = case ex of
+getFirstHole :: Maybe [Name] -> (Name, Maybe [Name])
+getFirstHole maybeH = 
+  case maybeH of
+    Nothing -> error "Should not be getting holes"
+    Just holes -> if holes == [] 
+                  then error "Insuficient holes"
+                  else (head holes, Just (tail holes))
 
-  Number n -> returnInfer (nullSubst, BaseType "Int")
+-- the resoning for the maybe name is that we might want to infer some 
+-- amount of holes (or none), so we fill holes in order, from left to right 
+infer :: TEnv -> Expr -> Maybe [Name] -> Infer (Subst, Type, Maybe [Name], Expr)
+infer env ex fills = case ex of
 
-  Character c -> returnInfer (nullSubst, BaseType "Char")
+  Number n -> returnInfer (nullSubst, BaseType "Int", fills, Number n)
 
-  Variable v -> lookupEnv env v
+  Character c -> returnInfer (nullSubst, BaseType "Char", fills, Character c)
+
+  Variable v -> do
+    t <- lookupEnv env v
+    return (nullSubst, t, fills, Variable v)
 
   Lambda vs expr -> do
     tvs <- replicateM (length vs) fresh
     let env' = foldl (\ te (tv, v) -> te `extend` (v, Forall [] tv)) env (zip tvs vs)
-    (s, t) <- infer env' expr
-    return (s, apply s (Arrow (TTuple tvs) t))
+    (s, t, fs, newE) <- infer env' expr fills
+    return (s, apply s (Arrow (TTuple tvs) t), fs, Lambda vs newE)
 
   Apply e es -> do
     tv <- fresh
-    (s1, t1) <- infer env e
-    (ss, ts) <- inferListLTR env es
+    (s1, t1, fs, newE) <- infer env e fills
+    (ss, ts, fs', newEs) <- inferListLTR env es fs
     s2 <- unify (apply ss t1) (Arrow ts tv)
-    return (s2 `compose` ss `compose` s1, apply s2 tv)
+    return (s2 `compose` ss `compose` s1, apply s2 tv, fs', Apply newE newEs)
 
-  Let (Val x e1) e2 -> do
-    (s1, t1) <- infer env e1
-    let env' = apply s1 env
-        t' = generalize env' t1
-    (s2, t2) <- infer (env' `extend` (x, t')) e2
-    return (s1 `compose` s2, t2)
+  -- Let (Val x e1) e2 -> do
+  --   (s1, t1, fs1) <- infer env e1 fills
+  --   let env' = apply s1 env
+  --       t' = generalize env' t1
+  --   (s2, t2, fs2) <- infer (env' `extend` (x, t')) e2 fs1
+  --   return (s1 `compose` s2, t2, fs2)
 
   If e1 e2 e3 -> do
-    (s1, t1) <- infer env e1
-    (s2, t2) <- infer env e2 
-    (s3, t3) <- infer env e3
+    (s1, t1, fs1, newC) <- infer env e1 fills
+    (s2, t2, fs2, newT) <- infer env e2 fs1
+    (s3, t3, fs3, newE) <- infer env e3 fs2
     s4 <- unify t1 (BaseType "Bool")
     s5 <- unify t2 t3
-    return (s5 `compose` s4 `compose` s3 `compose` s2 `compose` s1, apply s5 t2)
+    return (s5 `compose` s4 `compose` s3 `compose` s2 `compose` s1, 
+            apply s5 t2, 
+            fs3,
+            If newC newT newE)
 
-  Let (Rec x e1) e2 -> do
-    nV <- fresh
-    let expEnv = env `extend` (x, generalize env nV)
-    (s1, t1) <- infer expEnv e1
-    let env' = apply s1 expEnv
-        t' = generalize env' t1
-    (s2, t2) <- infer (env' `extend` (x, t')) e2
-    return (s1 `compose` s2, t2)
+  -- Let (Rec x e1) e2 -> do
+  --   nV <- fresh
+  --   let expEnv = env `extend` (x, generalize env nV)
+  --   (s1, t1, fs1) <- infer expEnv e1 fills
+  --   let env' = apply s1 expEnv
+  --       t' = generalize env' t1
+  --   (s2, t2, fs2) <- infer (env' `extend` (x, t')) e2 fs1
+  --   return (s1 `compose` s2, t2, fs2)
 
-inferDef :: TEnv -> Defn -> Infer (Subst, Type)
-inferDef tenv (Val x body) = do
-    (s1, t1) <- infer tenv body
-    return (s1, t1)
+  Hole -> do 
+    let (choice, newFills) = getFirstHole fills
+    t <- lookupEnv env choice
+    return (nullSubst, t, newFills, Variable choice)
+
+inferDef :: TEnv -> Defn -> Maybe [Name] -> Infer (Subst, Type, Maybe [Name], Expr)
+inferDef tenv (Val x body) fills = do
+    (s1, t1, newf, newB) <- infer tenv body fills
+    return (s1, t1, newf, newB)
     
-inferDef tenv (Rec x body) = do
+inferDef tenv (Rec x body) fills = do
     nV <- fresh
     let expEnv = tenv `extend` (x, generalize tenv nV)
-    (s1, t1) <- infer expEnv body
-    return (s1, t1)
+    (s1, t1, newf, newB) <- infer expEnv body fills
+    return (s1, t1, newf, newB)
 
-inferListLTR :: TEnv -> [Expr] -> Infer (Subst, Type)
-inferListLTR tenv exprs = foldM step (nullSubst, TTuple []) (reverse exprs)
-  where step (ns, TTuple ts) e = do
-          (s, t) <- infer tenv e
-          return (s `compose` ns, TTuple (t:ts))
+inferListLTR :: TEnv -> [Expr] -> Maybe [Name] -> Infer (Subst, Type, Maybe [Name], [Expr])
+inferListLTR tenv exprs fills = foldM step (nullSubst, TTuple [], fills, []) (reverse exprs)
+  where step (ns, TTuple ts, fs, exprs) e = do
+          (s, t, fs', nE) <- infer tenv e fs
+          return (s `compose` ns, TTuple (t:ts), fs', nE:exprs)
 
-inferExpr :: TEnv -> Expr -> Maybe Scheme
-inferExpr env = runInfer . infer env
-
-inferSynth :: ProgInfo -> Defn -> Maybe (Scheme, ProgInfo)
-inferSynth 
+inferExpr :: TEnv -> Expr -> Maybe [Name] -> Maybe (Scheme, Maybe [Name], Expr)
+inferExpr env expr fills = runInfer $ (infer env expr fills)
 
 normalize :: Scheme -> Scheme
 normalize (Forall ts body) = Forall (fmap snd ord) (normtype body)

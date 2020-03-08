@@ -4,65 +4,63 @@ module Search where
 
 import Elements
 import Data.List
+import Language.Syntax 
 import Language.Environment
 import Language.Types
+import Language.Infer
 import Data.Maybe
 import Debug.Trace
 import Data.Char
-import Data.Map as Map hiding (map, foldr, foldl)
-import Data.Set as Set hiding (map, foldr, foldl)
-import FuncDepGraph
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import DepGraph
 
 import Control.Monad.State
 
-progSearch :: Monad m => (IProgram -> Bool) -> 
-                         (ProgInfo -> State ProgInfo ()) -> 
-                         ProgInfo -> State ProgInfo
-progSearch check next initInfo = 
-    selectFirstResult (\d -> (trace ("Searching at depth " ++ show d ++ "...")) dbSearch d check next initInfo) [0 .. ]
-    where dbSearch d check next crtState
-            | d == 0             = Nothing
-            | check crt == True  = Just crt
-            | check crt == False = selectFirstResult (dbSearch (d - 1) check next) (map next (combine crtState))
-          selectFirstResult select [] = Nothing
-          selectFirstResult select (xm:xms) = 
-          do 
-            res <- xm
-            (
-                case select res of
-                    Nothing -> selectFirstResult select xs
-                    Just x  -> Just x
-            )
+-- progSearch :: (IProgram -> Bool) -> 
+--               ((IProgram, ProgInfo) -> [(IProgram, ProgInfo)]) -> 
+--               ProgInfo -> Maybe ProgInfo
+-- progSearch check next initInfo = 
+--     selectFirstResult (\d -> (trace ("Searching at depth " ++ show d ++ "...")) dbSearch d check next initInfo) [0 .. ]
+--     where dbSearch d check next crtState
+--             | d == 0             = Nothing
+--             | check crtState == True  = Just crt
+--             | check crtState == False = selectFirstResult (dbSearch (d - 1) check next) (map next (combine crtState))
+--           selectFirstResult select [] = Nothing
+--           selectFirstResult select (xm:xms) =
+--             case select xm of
+--                 Nothing -> selectFirstResult select xms
+--                 Just x  -> Just x
 
 expand :: (IProgram, ProgInfo) -> [(IProgram, ProgInfo)]
-expand (ip, pinf) = zipWith ??? (repeat newIProg) filled
-    where (def, newIProg) = popIF ip
-          zipped = zip (repeat ip) (mrs pinf)
-          mrsAppliedToDefs = map applyMr assigned
-          filled = map (fillHoles pinf) mrsAppliedToDefs
+expand (ip, pinf) = foldl filterJusts [] stream
+    where
+        (defn, newIProg) = popCand ip
+        specDefs = map applyMr (zip (repeat defn) (mrs pinf))
+        onlyNames = [ name | (name, _) <- envToList (env pinf), head name == '_' ]
+        stream = [ fill pinf def cProd | 
+                    (def, nHoles) <- specDefs,
+                    cProd <- sequence ((take nHoles . repeat) onlyNames)
+                 ]
+        filterJusts ls mb = case mb of
+            Nothing -> ls
+            Just (d, pi) -> ((pushDefn d newIProg), pi):ls
 
-applyMr :: Defn -> Metarule -> Defn
-applyMr (Val name body) mr = 
-    case body of 
-        Empty -> (Val name (body mr)), newIProg)
+applyMr :: (Defn, Metarule) -> (Defn, Int)
+applyMr ((Val name expr), mr) = 
+    case expr of 
+        Empty -> (Val name (body mr), nargs mr)
         _     -> error "When assigning mrs, the body should be empty"
 
-fillHoles :: ProgInfo -> Name -> Expr -> (Defn, ProgInfo)
-fillHoles pinf name fragment =
-    case fragment of
-        Hole -> 
-        Apply e es -> Apply (fillHoles e) (map fillHoles es)
-        If co th el -> If (fillHoles co) (fillHoles th) (fillHoles el)
-        Lambda ids body -> Lambda ids (fillHoles body)
-        _ -> fragment
-            
-
-
-
-
-
-
-
+fill :: ProgInfo -> Defn -> [Name] -> Maybe (Defn, ProgInfo)
+fill pinf (Val name body) withs = do
+    (sch, _, populated) <- runInfer $ inferDef (env pinf) (Val name body) (Just withs)
+    newG <- foldM addEdge (fDepG pinf) (zip (repeat name) withs)
+    let newPinf = pinf {
+        env = define (env pinf) name sch,
+        fDepG = newG
+    }
+    return (Val name populated, newPinf)
 
 
 

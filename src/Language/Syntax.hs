@@ -15,7 +15,7 @@ data Expr = Number Integer
           | Lambda [Ident] Expr
           | Let Defn Expr
           | Hole
-          | Empty 
+          | Empty
           deriving Show
 
 data Defn = Val Ident Expr
@@ -33,3 +33,5 @@ def_lhs (NEx f _ _) = "neg_" ++ f
 
 getName (Val n _) = n
 getName (Rec n _) = n
+getBody (Val _ b) = b
+getBody (Rec _ b) = b
