@@ -36,7 +36,9 @@ type Subst = Map.Map Name Type
 runInfer :: Infer (Subst, Type, Maybe [Name], Expr) -> Maybe (Scheme, Maybe [Name], Expr)
 runInfer m = case evalState (runMaybeT m) initUnique of
   Nothing -> Nothing
-  Just (s, t, fs, newE) -> Just $ (closeOver (s, t), fs, newE)  
+  Just (s, t, fs, newE) -> Just $ (closeOver (s, t), fs, newE)
+
+runUnify m = evalState (runMaybeT m) initUnique
 
 closeOver :: (Map.Map Name Type, Type) -> Scheme
 closeOver (sub, ty) = normalize sc
@@ -106,6 +108,14 @@ unifyListsLTR t1s t2s = foldM step nullSubst zipped
           nS <- unify (apply s t1) (apply s t2)
           return (nS `compose` s)
 
+unifySchemes :: Scheme -> Scheme -> Maybe Subst
+unifySchemes sch1 sch2 = runUnify $ do
+  t1 <- instantiate sch1
+  t2 <- instantiate sch2
+  unifier <- unify t1 t2
+
+  return unifier
+
 bind ::  Name -> Type -> Infer Subst
 bind a t
   | t == TVar a     = returnInfer nullSubst
@@ -124,7 +134,7 @@ fresh = do
   put s{count = count s + 1}
   return $ TVar $ (letters !! count s)
 
-instantiate ::  Scheme -> Infer Type
+instantiate :: Scheme -> Infer Type
 instantiate (Forall as t) = do
   as' <- mapM (const fresh) as
   let s = Map.fromList $ zip as as'
@@ -136,6 +146,9 @@ generalize env t  = Forall as t
 
 lookupEnv :: TEnv -> Name -> Infer Type
 lookupEnv env name = instantiate (find env name)
+
+simpleLookup :: TEnv -> Name -> Scheme
+simpleLookup env name = Language.Environment.find env name
 
 getFirstHole :: Maybe [Name] -> (Name, Maybe [Name])
 getFirstHole maybeH = 
@@ -171,13 +184,6 @@ infer env ex fills = case ex of
     s2 <- unify (apply ss t1) (Arrow ts tv)
     return (s2 `compose` ss `compose` s1, apply s2 tv, fs', Apply newE newEs)
 
-  -- Let (Val x e1) e2 -> do
-  --   (s1, t1, fs1) <- infer env e1 fills
-  --   let env' = apply s1 env
-  --       t' = generalize env' t1
-  --   (s2, t2, fs2) <- infer (env' `extend` (x, t')) e2 fs1
-  --   return (s1 `compose` s2, t2, fs2)
-
   If e1 e2 e3 -> do
     (s1, t1, fs1, newC) <- infer env e1 fills
     (s2, t2, fs2, newT) <- infer env e2 fs1
@@ -188,6 +194,13 @@ infer env ex fills = case ex of
             apply s5 t2, 
             fs3,
             If newC newT newE)
+
+  -- Let (Val x e1) e2 -> do
+  --   (s1, t1, fs1) <- infer env e1 fills
+  --   let env' = apply s1 env
+  --       t' = generalize env' t1
+  --   (s2, t2, fs2) <- infer (env' `extend` (x, t')) e2 fs1
+  --   return (s1 `compose` s2, t2, fs2)
 
   -- Let (Rec x e1) e2 -> do
   --   nV <- fresh
@@ -259,3 +272,4 @@ normalize (Forall ts body) = Forall (fmap snd ord) (normtype body)
 --   inferStep (s, tf) exp = do
 --     (s', t) <- infer (apply s env) exp
 --     return (s' `compose` s, tf . (Arrow t))
+

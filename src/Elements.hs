@@ -23,10 +23,7 @@ data Metarule = Metarule {
 data IProgram = IProgram {
     toDoStack :: [Defn],
     doneStack :: [Defn]
-}
-
-instance Show IProgram where
-    show (IProgram tds ds) = show ds ++ "\n"
+} deriving Show
 
 type UniqueID = Int
 type Metarules = [Metarule]
@@ -35,11 +32,9 @@ data ProgInfo = ProgInfo {
     mrs :: Metarules,
     env :: Environment Scheme,
     fDepG :: DepGraph,
-    uid :: UniqueID
-}
-
-instance Show ProgInfo where
-    show _ = ""
+    uid :: UniqueID,
+    expScheme :: Scheme
+} deriving Show
 
 ----- Helpers
 
@@ -49,9 +44,8 @@ pushDefn defn ip = ip {doneStack = defn : doneStack ip}
 popCand :: IProgram -> (Defn, IProgram)
 popCand ip = (head (toDoStack ip), ip { toDoStack = tail (toDoStack ip) })
 
--- isCompleteIP :: IProgram -> Bool
--- isCompleteIP (IProgram [] cs) = all isCompleteIF cs
--- isCompleteIP _ = False
+isCompleteIP :: IProgram -> Bool
+isCompleteIP ip = null (toDoStack ip)
 
 -- addIFtoIP :: IFunction -> IProgram -> IProgram
 -- addIFtoIP ifun (IProgram is cs) = 

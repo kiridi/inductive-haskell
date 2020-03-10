@@ -1,0 +1,16 @@
+val comp(f, g) = lambda (x) f(g(x)) ;;
+
+rec map(f) = lambda (xs)
+    (if xs = nil
+    then nil
+    else f(head(xs)):map(f)(tail(xs))) ;;
+
+val BK_addOne(x) = BK_addTwo(x) - 1 ;;
+
+val BK_addTwo(x) = x + 2 ;;
+
+NEx target (1) => 2 ;;
+NEx target (3) => 5 ;;
+PEx target (4) => 7 ;;
+PEx target (7) => 10 ;;
+--Synthesize target(xs @ Int) @ Int;;

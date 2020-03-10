@@ -3,6 +3,8 @@ module Language.FunParser(funParser) where
     import Language.Syntax
     import Data.Char
     import Language.Types
+    import Language.Infer
+    import qualified Data.Set as Set
     
     data Token = 
         IDENT IdKind Ident | NUMBER Integer | CHARACTER Char
@@ -101,7 +103,7 @@ module Language.FunParser(funParser) where
     p_phrase =
       do e <- p_expr; eat SSEMI; return (Calculate e)
       <+> do d <- p_def; eat SSEMI; return (Define d)
-      <+> do eat SYNTH; name <- p_name; (_, ins) <- p_fsts; eat AT; out <- p_type; eat SSEMI; return (Synth name (Arrow (TTuple ins) out))
+      <+> do eat SYNTH; name <- p_name; (_, ins) <- p_fsts; eat AT; out <- p_type; eat SSEMI; let typ = Arrow (TTuple ins) out in return (Synth name (Forall (Set.toList $ ftv typ) typ))
     
     -- {\syn _def_ \arrow\ "val" _eqn_ \orr\ "rec" _eqn_ \orr\ "array" _name_ "[" _expr_ "]" \orr\ "open" _expr_}
     p_def = 
@@ -114,7 +116,7 @@ module Language.FunParser(funParser) where
     p_eqn =
       do x <- p_name; eat EQUAL; e <- p_expr; return (x, e)
       <+> do x <- p_name; xs <- p_formals; eat EQUAL; e <- p_expr; return (x, Lambda xs e)
-    
+      
     p_type =
       do eat INT; return (BaseType "Int") 
       <+> do eat BOOL; return (BaseType "Bool")

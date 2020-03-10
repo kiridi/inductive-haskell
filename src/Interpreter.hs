@@ -14,7 +14,7 @@ import Data.Map as Map hiding (find, foldr, foldl, map, filter)
 import Elements
 import Language.Types
 import Language.Infer
--- import Search
+import Search
 
 import Debug.Trace
 
@@ -95,45 +95,18 @@ addExample (NEx name ins out) venv eenv =
   where eins = map (\ e -> eval e venv) ins
         eout = eval out venv
 
--- ifToDefn :: IFunction -> Defn
--- ifToDefn (Complete name mr typ fofs) = 
---   case mr of 
---     COMP -> Val name typ (Lambda ["x"] 
---                             (Apply (Variable (getName (fofs!!0))) 
---                               [(Apply (Variable (getName (fofs!!1))) 
---                                 [(Variable "x")])]))
---     MAP -> Val name typ (Lambda ["xs"]
---                           (Apply (Variable "map") 
---                             [Variable (getName (fofs!!0)), Variable "xs"]))
---     FILTER -> Val name typ (Lambda ["xs"]
---                              (Apply (Variable "filter") 
---                                [Variable (getName (fofs!!0)), Variable "xs"]))
---   where getName (FOF name) = name
--- ifToDefn _ = error "Only complete IFunctions should be translated"
-
--- checkTarget :: Ident -> [IFunction] -> VEnv-> EEnv -> Bool
--- checkTarget target funcs venv eenv = --trace (show funcs ++ "\n") 
---   res_pos get_pex == True && res_neg get_nex == False
---   where (get_pex, get_nex) = find eenv target
---         func name = 
---           case find newEnv name of
---             Function f -> Function f
---             _ -> error "Target not in the environment"
---         checkPosEx (Pos ins out) b = (apply (func target) ins == out) && b
---         checkPosEx _ _ = error "Error when checking the positive examples"
---         checkNegEx (Neg ins out) b = (apply (func target) ins == out) || b
---         checkNegEx _ _ = error "Error when checking the negative examples"
---         res_pos exs = foldr checkPosEx True exs
---         res_neg exs = foldr checkNegEx False exs
---         newEnv = (foldl (\env' ifun -> elab (ifToDefn ifun) env') venv ordered)
-
---         names fs = map (\ (Complete n _ _ _) -> n) fs
---         createEdges [] = []
---         createEdges ((n, ifn):ns) = (ifn, n, neighbours n) : createEdges ns
---         neighbours n = (names.filter (\ (Complete _ _ _ fofs) -> inFofs n fofs)) funcs
---         inFofs n fofs = any (\ (FOF fn) -> fn == n) fofs
---         (graph, nodeFromVertex, vertexFromKey) = graphFromEdges ((createEdges.zip (names funcs)) funcs)
---         ordered = map ((\(a, _, _) -> a).nodeFromVertex) (topSort graph)
+checkTarget :: Ident -> [Defn] -> VEnv -> EEnv -> Bool
+checkTarget target funcs venv eenv =
+  res_pos get_pex == True && res_neg get_nex == False
+  where (get_pex, get_nex) = find eenv target
+        newEnv = (foldl (\env' def -> elab def env') venv funcs)
+        checkPosEx (Pos ins out) b = (applyF (eval (Variable target) newEnv) ins == out) && b
+        checkPosEx _ _ = error "Error when checking the positive examples"
+        checkNegEx (Neg ins out) b = (applyF (eval (Variable target) newEnv) ins == out) || b
+        checkNegEx _ _ = error "Error when checking the negative examples"
+        res_pos exs = foldr checkPosEx True exs
+        res_neg exs = foldr checkNegEx False exs
+        
 
 init_env :: VEnv
 init_env = 
@@ -163,20 +136,20 @@ init_env =
     pureprim "isLowerCase" (\ [CharVal a] -> BoolVal (isLower a)),
     pureprim "isUpperCase" (\ [CharVal a] -> BoolVal (isUpper a)),
     pureprim "isDigit" (\ [CharVal a] -> BoolVal (isDigit a)),
-    pureprim "list" (\ xs -> foldr Cons Nil xs),
-    pureprim "map" (\[Function f, xs] -> mapply f xs),
-    pureprim "filter" (\[Function p, xs] -> fapply p xs)]
+    pureprim "list" (\ xs -> foldr Cons Nil xs)]
+    -- pureprim "map" (\[Function f, xs] -> mapply f xs),
+    -- pureprim "filter" (\[Function p, xs] -> fapply p xs)]
     where constant x v = (x, v)
           pureprim x f = (x, Function (primwrap x f))
           
-          mapply f Nil = Nil
-          mapply f (Cons a b) = Cons (f [a]) (mapply f b)
+          -- mapply f Nil = Nil
+          -- mapply f (Cons a b) = Cons (f [a]) (mapply f b)
 
-          fapply p Nil = Nil
-          fapply p (Cons a b) = 
-            case p [a] of
-              BoolVal True -> Cons a (fapply p b)
-              BoolVal False -> fapply p b
+          -- fapply p Nil = Nil
+          -- fapply p (Cons a b) = 
+          --   case p [a] of
+          --     BoolVal True -> Cons a (fapply p b)
+          --     BoolVal False -> fapply p b
 
 init_tenv :: TEnv
 init_tenv = 
@@ -223,21 +196,36 @@ obey (Define def) (venv, tenv, eenv) =
         isEx (NEx _ _ _) = True
         isEx _  = False
 
--- obey (Synth name typ) (venv, tenv, eenv) = (show prog, (venv, tenv, eenv))
---   where Just (prog, _) = iddfs (check venv eenv) expand initProg
---         bkfof          = envToList tenv
---         myType         = find tenv' name
---         tenv'          = define tenv name typ
---         initProg       = (emptyProg name typ, (metarules, bkfof, emptyGraph, 0))
+obey (Synth name expectedScheme) (venv, tenv, eenv) = (show prog, (venv, tenv, eenv))
+  where Just prog = progSearch (check venv eenv) expand (initProg, initProgInfo)
+        bkfof          = envToList tenv
+        initProg       = IProgram [Val "target" Empty] [] 
+        initProgInfo   = ProgInfo {
+          mrs = metarules,
+          env = tenv,
+          fDepG = emptyGraph,
+          uid = 0,
+          expScheme = expectedScheme
+        }
 
--- metarules :: [Expr]
--- metarules = [MAP, COMP, FILTER]
+compMr = Metarule {
+    name = "comp", 
+    body = Apply (Variable "comp") [Hole, Hole],
+    nargs = 2 
+}
+mapMr = Metarule {
+    name = "map",
+    body = Apply (Variable "map") [Hole],
+    nargs = 1
+}
+metarules = [compMr, mapMr]
 
--- check :: VEnv -> EEnv -> (IProgram, State) -> Bool
--- check venv eenv (IProgram [] cs, state) = --trace (show $ IProgram [] cs)
---                                           isCompleteIP (IProgram [] cs) && 
---                                           checkTarget "target" cs venv eenv
--- check _ _ _ = False
+check :: VEnv -> EEnv -> (IProgram, ProgInfo) -> Bool
+check venv eenv (iprog, _) =
+  case toDoStack iprog of
+    [] -> checkTarget "target" (doneStack iprog) venv eenv
+    _  -> False
+
 
 instance Eq Value where
   IntVal a == IntVal b = a == b

@@ -4,7 +4,7 @@ import Language.Types
 
 data Phrase = Calculate Expr
             | Define Defn
-            | Synth Ident Type
+            | Synth Ident Scheme
             deriving Show
 
 data Expr = Number Integer

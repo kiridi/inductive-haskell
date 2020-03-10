@@ -1,7 +1,7 @@
 module DepGraph where
 
-import Data.Map as Map
-import Data.Set as Set
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.Maybe
 import Debug.Trace
 
@@ -10,7 +10,7 @@ import Debug.Trace
 type Node = String
 type Edge = (Node, Node)
 
-type DepGraph = Map Node [Node]
+type DepGraph = Map.Map Node [Node]
 
 emptyGraph :: DepGraph
 emptyGraph = Map.empty
@@ -37,3 +37,12 @@ hasPath g s d =
     if (d `elem` (neighbours g s))
     then True
     else any (\a -> a == True) ([hasPath g crt d | crt <- neighbours g s])
+
+topoSort :: DepGraph -> [Node]
+topoSort depGraph = snd $ foldl traversal (Set.empty, []) (Map.keys depGraph)
+    where
+        traversal (visited, ordering) node = 
+            if node `Set.member` visited
+            then (visited, ordering)
+            else addNode node $ foldl traversal (Set.insert node visited, ordering) (neighbours depGraph node)
+        addNode node (v, o) = (v, node:o)

@@ -12,6 +12,8 @@ data Type = TVar Name
           deriving Eq
 data Scheme = Forall [Name] Type
 
+getType (Forall _ t) = t
+
 instance Show Type where
     show (TVar n) = n
     show (BaseType n) = n

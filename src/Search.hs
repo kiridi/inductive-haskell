@@ -4,6 +4,7 @@ module Search where
 
 import Elements
 import Data.List
+import Data.Char
 import Language.Syntax 
 import Language.Environment
 import Language.Types
@@ -14,30 +15,31 @@ import Data.Char
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import DepGraph
+import Control.Monad
 
-import Control.Monad.State
+type ProgState = (IProgram, ProgInfo)
 
--- progSearch :: (IProgram -> Bool) -> 
---               ((IProgram, ProgInfo) -> [(IProgram, ProgInfo)]) -> 
---               ProgInfo -> Maybe ProgInfo
--- progSearch check next initInfo = 
---     selectFirstResult (\d -> (trace ("Searching at depth " ++ show d ++ "...")) dbSearch d check next initInfo) [0 .. ]
---     where dbSearch d check next crtState
---             | d == 0             = Nothing
---             | check crtState == True  = Just crt
---             | check crtState == False = selectFirstResult (dbSearch (d - 1) check next) (map next (combine crtState))
---           selectFirstResult select [] = Nothing
---           selectFirstResult select (xm:xms) =
---             case select xm of
---                 Nothing -> selectFirstResult select xms
---                 Just x  -> Just x
+progSearch :: (ProgState -> Bool) -> (ProgState -> [ProgState]) -> ProgState -> Maybe IProgram
+progSearch check next initInfo = 
+    selectFirstResult (\d -> (trace ("Searching at depth " ++ show d ++ "...")) dbSearch d check next initInfo) [1 .. ]
+    where dbSearch d check next crtState
+            | d == 0                  = Nothing
+            | check crtState == True  = Just (fst crtState)
+            | check crtState == False = selectFirstResult (dbSearch (d - 1) check next) (next crtState)
+          selectFirstResult select [] = Nothing
+          selectFirstResult select (xm:xms) =
+            case select xm of
+                Nothing -> selectFirstResult select xms
+                Just x  -> Just x
 
-expand :: (IProgram, ProgInfo) -> [(IProgram, ProgInfo)]
-expand (ip, pinf) = foldl filterJusts [] stream
+expand :: ProgState -> [ProgState]
+expand (ip, pinf)  
+    | not (isCompleteIP ip) = foldl filterJusts [] stream
+    | otherwise = []
     where
         (defn, newIProg) = popCand ip
         specDefs = map applyMr (zip (repeat defn) (mrs pinf))
-        onlyNames = [ name | (name, _) <- envToList (env pinf), head name == '_' ]
+        onlyNames = [ name | (name, _) <- envToList (env pinf), "BK_" `isPrefixOf` name ]
         stream = [ fill pinf def cProd | 
                     (def, nHoles) <- specDefs,
                     cProd <- sequence ((take nHoles . repeat) onlyNames)
@@ -60,8 +62,8 @@ fill pinf (Val name body) withs = do
         env = define (env pinf) name sch,
         fDepG = newG
     }
+    _ <- unifySchemes (expScheme pinf) (simpleLookup (env newPinf) "target")
     return (Val name populated, newPinf)
-
 
 
 
