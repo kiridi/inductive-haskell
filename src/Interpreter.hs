@@ -76,33 +76,33 @@ elab (Rec x _) env =
 
 addSignature :: Defn -> TEnv -> TEnv
 addSignature def tenv = 
-  case runInfer $ inferDef tenv def Nothing of
+  case runInfer $ inferDef tenv def of
     Nothing -> error ("Type error when trying to define " ++ (getName def))
-    Just (t, _, _) -> define tenv (getName def) t
+    Just sch -> define tenv (getName def) sch
 
 addExample :: Defn -> VEnv -> EEnv -> EEnv
-addExample (PEx name ins out) venv eenv = 
-  case maybe_find eenv name of
-    Nothing -> define eenv name ([Pos eins eout], [])
-    Just (pos, neg) -> define eenv name ((Pos eins eout) : pos, neg)
+addExample (PEx ins out) venv eenv = 
+  case maybe_find eenv "gen0" of
+    Nothing -> define eenv "gen0" ([Pos eins eout], [])
+    Just (pos, neg) -> define eenv "gen0" ((Pos eins eout) : pos, neg)
   where eins = map (\ e -> eval e venv) ins
         eout = eval out venv
 
-addExample (NEx name ins out) venv eenv = 
-  case maybe_find eenv name of
-    Nothing         -> define eenv name ([], [Neg eins eout])
-    Just (pos, neg) -> define eenv name (pos, (Neg eins eout) : neg)
+addExample (NEx ins out) venv eenv = 
+  case maybe_find eenv "gen0" of
+    Nothing         -> define eenv "gen0" ([], [Neg eins eout])
+    Just (pos, neg) -> define eenv "gen0" (pos, (Neg eins eout) : neg)
   where eins = map (\ e -> eval e venv) ins
         eout = eval out venv
 
-checkTarget :: Ident -> [Defn] -> VEnv -> EEnv -> Bool
-checkTarget target funcs venv eenv =
+checkTarget :: [Defn] -> VEnv -> EEnv -> Bool
+checkTarget funcs venv eenv =
   res_pos get_pex == True && res_neg get_nex == False
-  where (get_pex, get_nex) = find eenv target
+  where (get_pex, get_nex) = find eenv "gen0"
         newEnv = (foldl (\env' def -> elab def env') venv funcs)
-        checkPosEx (Pos ins out) b = (applyF (eval (Variable target) newEnv) ins == out) && b
+        checkPosEx (Pos ins out) b = (applyF (eval (Variable "gen0") newEnv) ins == out) && b
         checkPosEx _ _ = error "Error when checking the positive examples"
-        checkNegEx (Neg ins out) b = (applyF (eval (Variable target) newEnv) ins == out) || b
+        checkNegEx (Neg ins out) b = (applyF (eval (Variable "gen0") newEnv) ins == out) || b
         checkNegEx _ _ = error "Error when checking the negative examples"
         res_pos exs = foldr checkPosEx True exs
         res_neg exs = foldr checkNegEx False exs
@@ -182,9 +182,9 @@ init_tenv =
 obey :: Phrase -> (VEnv, TEnv, EEnv) -> (String, (VEnv, TEnv, EEnv))
 
 obey (Calculate exp) (venv, tenv, eenv) =
-  case inferExpr tenv exp Nothing of
+  case inferExpr tenv exp of
     Nothing -> error "Bad type"
-    Just (sch, _, _) -> (print_value (eval exp venv) ++ " :: " ++ show sch, (venv, tenv, eenv))
+    Just sch -> (print_value (eval exp venv) ++ " :: " ++ show sch, (venv, tenv, eenv))
   
 obey (Define def) (venv, tenv, eenv) =
   let x = def_lhs def in
@@ -192,20 +192,21 @@ obey (Define def) (venv, tenv, eenv) =
   let tenv' = if isEx def then tenv else addSignature def tenv in
   let eenv' = if isEx def then addExample def venv eenv else eenv in
   (if (isEx def) then "" else print_defn tenv' x, (venv', tenv', eenv'))
-  where isEx (PEx _ _ _) = True
-        isEx (NEx _ _ _) = True
+  where isEx (PEx _ _) = True
+        isEx (NEx _ _) = True
         isEx _  = False
 
-obey (Synth name expectedScheme) (venv, tenv, eenv) = (show prog, (venv, tenv, eenv))
+obey (Synth expectedType) (venv, tenv, eenv) = (show prog, (venv, tenv, eenv))
   where Just prog = progSearch (check venv eenv) expand (initProg, initProgInfo)
         bkfof          = envToList tenv
-        initProg       = IProgram [Val "target" Empty] [] 
+        initProg       = IProgram [Val "gen0" Empty] [] 
         initProgInfo   = ProgInfo {
           mrs = metarules,
-          env = tenv,
+          envI = tenv,
+          envG = define empty_env "gen0" (TVar "unknown0"),
           fDepG = emptyGraph,
-          uid = 0,
-          expScheme = expectedScheme
+          uid = 1,
+          expType = expectedType
         }
 
 compMr = Metarule {
@@ -221,11 +222,10 @@ mapMr = Metarule {
 metarules = [compMr, mapMr]
 
 check :: VEnv -> EEnv -> (IProgram, ProgInfo) -> Bool
-check venv eenv (iprog, _) =
+check venv eenv (iprog, pinf) = trace (show iprog) $
   case toDoStack iprog of
-    [] -> checkTarget "target" (doneStack iprog) venv eenv
+    [] -> checkTarget (doneStack iprog) venv eenv
     _  -> False
-
 
 instance Eq Value where
   IntVal a == IntVal b = a == b

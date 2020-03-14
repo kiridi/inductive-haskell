@@ -5,12 +5,12 @@ rec map(f) = lambda (xs)
     then nil
     else f(head(xs)):map(f)(tail(xs))) ;;
 
-val BK_addOne(x) = BK_addTwo(x) - 1 ;;
+val BK_addOne(x) = x + 1 ;;
 
 val BK_addTwo(x) = x + 2 ;;
 
-NEx target (1) => 2 ;;
-NEx target (3) => 5 ;;
-PEx target (4) => 7 ;;
-PEx target (7) => 10 ;;
---Synthesize target(xs @ Int) @ Int;;
+NEx (list(1)) => list(2) ;;
+NEx (list(3)) => list(5) ;;
+PEx (list(1, 4)) => list(7, 10) ;;
+PEx (list(7)) => list(13) ;;
+Synthesize ([Int]) => [Int];;

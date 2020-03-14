@@ -103,14 +103,14 @@ module Language.FunParser(funParser) where
     p_phrase =
       do e <- p_expr; eat SSEMI; return (Calculate e)
       <+> do d <- p_def; eat SSEMI; return (Define d)
-      <+> do eat SYNTH; name <- p_name; (_, ins) <- p_fsts; eat AT; out <- p_type; eat SSEMI; let typ = Arrow (TTuple ins) out in return (Synth name (Forall (Set.toList $ ftv typ) typ))
+      <+> do eat SYNTH; ins <- p_fsts; eat ARROW; out <- p_type; eat SSEMI; let typ = Arrow (TTuple ins) out in return (Synth typ)
     
     -- {\syn _def_ \arrow\ "val" _eqn_ \orr\ "rec" _eqn_ \orr\ "array" _name_ "[" _expr_ "]" \orr\ "open" _expr_}
     p_def = 
       do eat VAL; (x, e) <- p_eqn; return (Val x e)
       <+> do eat REC; (x, e) <- p_eqn; return (Rec x e)
-      <+> do eat PEX; ident <- p_name; ins <- p_actuals; eat ARROW; out <- p_expr; return (PEx ident ins out)
-      <+> do eat NEX; ident <- p_name; ins <- p_actuals; eat ARROW; out <- p_expr; return (NEx ident ins out)
+      <+> do eat PEX; ins <- p_actuals; eat ARROW; out <- p_expr; return (PEx ins out)
+      <+> do eat NEX; ins <- p_actuals; eat ARROW; out <- p_expr; return (NEx ins out)
     
     -- {\syn _eqn_ \arrow\ _name_ "=" _expr_ \orr\ _name_ _formals_ "=" _expr_}
     p_eqn =
@@ -129,7 +129,7 @@ module Language.FunParser(funParser) where
       do n <- p_name; eat AT; t <- p_type; return (n, t)
 
     p_fsts = 
-      do eat LPAR; xs <- p_list0 p_var COMMA; eat RPAR; return (unzip xs)
+      do eat LPAR; xs <- p_list0 p_type COMMA; eat RPAR; return xs
     
     p_formals = 
       do eat LPAR; xs <- p_list0 p_name COMMA; eat RPAR; return xs

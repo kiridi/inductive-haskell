@@ -1,16 +1,4 @@
-inductive-haskell-0.1.0.0: unregistering (local file changes: src/Language/FunParser.hs src/Language/Types.hs src/Search.hs)
+inductive-haskell-0.1.0.0: unregistering (local file changes: src/Search.hs)
 inductive-haskell> build (lib + exe)
 Preprocessing library for inductive-haskell-0.1.0.0..
 Building library for inductive-haskell-0.1.0.0..
-[ 5 of 10] Compiling Language.Types
-
-/mnt/c/Users/Blade/Documents/OxCS/3rd Year Proj/inductive-haskell/src/Language/Types.hs:40:19: error:
-    Not in scope: data constructor ‘TVarR’
-    Perhaps you meant ‘TVar’ (line 7)
-   |
-40 | applySubst subst (TVarR a) = 
-   |                   ^^^^^
-
---  While building package inductive-haskell-0.1.0.0 using:
-      /home/andrei/.stack/setup-exe-cache/x86_64-linux/Cabal-simple_mPHDZzAJ_2.4.0.1_ghc-8.6.5 --builddir=.stack-work/dist/x86_64-linux/Cabal-2.4.0.1 build lib:inductive-haskell exe:inductive-haskell-exe --ghc-options ""
-    Process exited with code: ExitFailure 1

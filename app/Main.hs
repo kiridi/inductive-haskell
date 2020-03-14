@@ -15,8 +15,6 @@ import Language.Syntax
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 
---import Data.Maybe
-
 import Text.Printf
 import Control.Exception
 import System.CPUTime
@@ -38,7 +36,7 @@ main = do
 -- tenv = make_env [("+", Forall [] $ Arrow (TTuple [BaseType "Int", BaseType "Int"]) (BaseType "Int")),
 --                  ("-", Forall [] $ Arrow (TTuple [BaseType "Int", BaseType "Int"]) (BaseType "Int"))]
 
--- fdg = fromJust $ do
+-- fdg = fromJust $ fromJust $ do
 --     new1 <- addEdge emptyGraph ("a", "c")
 --     new2 <- addEdge new1 ("a", "d")
 --     new3 <- addEdge new2 ("c", "d")
@@ -49,23 +47,29 @@ main = do
 --     new8 <- addEdge new7 ("g", "h")
 --     return $ addEdge new8 ("e", "h")
 
--- compMr = Metarule {
+-- compMr1 = Metarule {
 --     name = "comp", 
---     body = Apply (Variable ".") [Hole, Hole],
+--     body = Apply (Variable "comp") [Hole, Hole],
 --     nargs = 2 
 -- }
--- mapMr = Metarule {
+-- mapMr1 = Metarule {
 --     name = "map",
 --     body = Apply (Variable "map") [Hole],
 --     nargs = 1
 -- }
--- metarules = [compMr, mapMr]
--- envenv = make_env [(".", Forall ["a", "b", "c"] $ Arrow (TTuple [Arrow (TTuple [TVar "b"]) (TVar "c"), Arrow (TTuple [TVar "a"]) (TVar "b")]) (Arrow (TTuple [TVar "a"]) (TVar "c"))),
+-- metarules1 = [compMr1, mapMr1]
+-- envenv = make_env [("comp", Forall ["a", "b", "c"] $ Arrow (TTuple [Arrow (TTuple [TVar "b"]) (TVar "c"), Arrow (TTuple [TVar "a"]) (TVar "b")]) (Arrow (TTuple [TVar "a"]) (TVar "c"))),
 --                 ("map", Forall ["a", "b", "c"] $ Arrow (TTuple [Arrow (TTuple [TVar "a"]) (TVar "b")]) (Arrow (TTuple [TArray (TVar "a")]) (TArray (TVar "b")))),
---                 ("_add1", Forall [] $ Arrow (TTuple [BaseType "Int"]) (BaseType "Int")), 
---                 ("_minus1", Forall [] $ Arrow (TTuple [BaseType "Int"]) (BaseType "Int")),
---                 ("_reverse", Forall ["a"] $ Arrow (TTuple [TArray (TVar "a")]) (TArray (TVar "a"))),
---                 ("_maprev", Forall ["a"] $ Arrow (TTuple [TArray (TArray (TVar "a"))]) (TArray (TArray (TVar "a"))))]
+--                 ("add1", Forall [] $ Arrow (TTuple [BaseType "Int"]) (BaseType "Int")), 
+--                 ("minus1", Forall [] $ Arrow (TTuple [BaseType "Int"]) (BaseType "Int")),
+--                 ("reverse", Forall ["a"] $ Arrow (TTuple [TArray (TVar "a")]) (TArray (TVar "a"))),
+--                 ("maprev", Forall ["a"] $ Arrow (TTuple [TArray (TArray (TVar "a"))]) (TArray (TArray (TVar "a")))),
+--                 ("gen0", Forall [] $ TVar "unknown0")]
+
+-- -- iprogram = IProgram {
+-- --     toDoStack = [Val "gen0" Empty],
+-- --     doneStack = [Val "target" (Apply (Variable "map") [Variable "gen0"])]
+-- -- }
 
 -- iprogram = IProgram {
 --     toDoStack = [Val "target" Empty],
@@ -73,9 +77,11 @@ main = do
 -- }
 
 -- pinf = ProgInfo {
---     mrs = metarules,
+--     mrs = metarules1,
 --     env = envenv,
 --     fDepG = fdg,
---     expScheme = Forall ["a1"] $ Arrow (TTuple [TArray (TArray (BaseType "rigid"))]) (TArray (TArray (BaseType "rigid"))),
+--     expScheme = Forall [] $ Arrow (TTuple [TArray (TArray (BaseType "rigid"))]) (TArray (TArray (BaseType "rigid"))),
 --     uid = 0
 -- }
+
+-- main = putStr $ show $ runInfer $ inferDef envenv (Val "target" (Apply (Variable "map") [Hole])) (Just ["gen0"])

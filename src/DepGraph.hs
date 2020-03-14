@@ -34,7 +34,7 @@ neighbours g n =
 -- can be optimized further, does not shortcircuit
 hasPath :: DepGraph -> Node -> Node -> Bool
 hasPath g s d =
-    if (d `elem` (neighbours g s))
+    if (d `elem` (neighbours g s) || s == d)
     then True
     else any (\a -> a == True) ([hasPath g crt d | crt <- neighbours g s])
 
