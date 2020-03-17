@@ -4,12 +4,13 @@ import Language.FunParser
 import Language.Types
 import Language.Environment
 import Data.Maybe
-import qualified Data.Set as Set
+import Data.List
 import Interpreter
 import DepGraph
 import Elements
 import Search
 import Language.Infer
+import Language.InferSynth
 import Language.Types
 import Language.Syntax
 import qualified Data.Set as Set
@@ -32,56 +33,45 @@ main = do
     putStrLn "Starting...\n"
     time $ dialog funParser obey (init_env, init_tenv, empty_env)
 
--- tenv :: Environment Scheme
--- tenv = make_env [("+", Forall [] $ Arrow (TTuple [BaseType "Int", BaseType "Int"]) (BaseType "Int")),
---                  ("-", Forall [] $ Arrow (TTuple [BaseType "Int", BaseType "Int"]) (BaseType "Int"))]
+fdg = Map.fromList [("gen0",["gen3","gen2"])]
 
--- fdg = fromJust $ fromJust $ do
---     new1 <- addEdge emptyGraph ("a", "c")
---     new2 <- addEdge new1 ("a", "d")
---     new3 <- addEdge new2 ("c", "d")
---     new4 <- addEdge new3 ("b", "d")
---     new5 <- addEdge new4 ("c", "e")
---     new6 <- addEdge new5 ("f", "e")
---     new7 <- addEdge new6 ("f", "g")
---     new8 <- addEdge new7 ("g", "h")
---     return $ addEdge new8 ("e", "h")
+compMr1 = Metarule {
+    name = "comp", 
+    body = Lambda ["gen_x"] (Apply (Apply (Variable "comp") [Hole, Hole]) [Variable "gen_x"]),
+    nargs = 2 
+}
+mapMr1 = Metarule {
+    name = "map",
+    body = Lambda ["gen_xs"] (Apply (Apply (Variable "map") [Hole]) [Variable "gen_xs"]),
+    nargs = 1
+}
 
--- compMr1 = Metarule {
---     name = "comp", 
---     body = Apply (Variable "comp") [Hole, Hole],
---     nargs = 2 
--- }
--- mapMr1 = Metarule {
---     name = "map",
---     body = Apply (Variable "map") [Hole],
---     nargs = 1
--- }
--- metarules1 = [compMr1, mapMr1]
--- envenv = make_env [("comp", Forall ["a", "b", "c"] $ Arrow (TTuple [Arrow (TTuple [TVar "b"]) (TVar "c"), Arrow (TTuple [TVar "a"]) (TVar "b")]) (Arrow (TTuple [TVar "a"]) (TVar "c"))),
---                 ("map", Forall ["a", "b", "c"] $ Arrow (TTuple [Arrow (TTuple [TVar "a"]) (TVar "b")]) (Arrow (TTuple [TArray (TVar "a")]) (TArray (TVar "b")))),
---                 ("add1", Forall [] $ Arrow (TTuple [BaseType "Int"]) (BaseType "Int")), 
---                 ("minus1", Forall [] $ Arrow (TTuple [BaseType "Int"]) (BaseType "Int")),
---                 ("reverse", Forall ["a"] $ Arrow (TTuple [TArray (TVar "a")]) (TArray (TVar "a"))),
---                 ("maprev", Forall ["a"] $ Arrow (TTuple [TArray (TArray (TVar "a"))]) (TArray (TArray (TVar "a")))),
---                 ("gen0", Forall [] $ TVar "unknown0")]
+metarules1 = [compMr1, mapMr1]
+envI' = make_env [("comp", Forall ["a", "b", "c"] $ Arrow (TTuple [Arrow (TTuple [TVar "b"]) (TVar "c"), Arrow (TTuple [TVar "a"]) (TVar "b")]) (Arrow (TTuple [TVar "a"]) (TVar "c"))),
+                ("map", Forall ["a", "b"] $ Arrow (TTuple [Arrow (TTuple [TVar "a"]) (TVar "b")]) (Arrow (TTuple [TArray (TVar "a")]) (TArray (TVar "b")))),
+                ("BK_reverse", Forall ["a"] $ Arrow (TTuple [TArray (TVar "a")]) (TArray (TVar "a"))),
+                ("BK_tail", Forall ["a"] $ Arrow (TTuple [TArray (TVar "a")]) (TArray (TVar "a")))]
 
--- -- iprogram = IProgram {
--- --     toDoStack = [Val "gen0" Empty],
--- --     doneStack = [Val "target" (Apply (Variable "map") [Variable "gen0"])]
--- -- }
+envG' = make_env [("gen0", Arrow (TTuple [TVar "d3"]) (TVar "e4")),
+                            ("gen2",Arrow (TTuple [TVar "d3"]) (TVar "h7")),
+                            ("gen3",Arrow (TTuple [TVar "h7"]) (TVar "e4"))]
 
--- iprogram = IProgram {
---     toDoStack = [Val "target" Empty],
---     doneStack = []
--- }
+iprogram = IProgram {toDoStack = [Val "gen2" Empty,Val "gen3" Empty], doneStack = [Val "gen0" (Lambda ["gen_x"] (Apply (Apply (Variable "comp") [Variable "gen3",Variable "gen2"]) [Variable "gen_x"]))]}
 
--- pinf = ProgInfo {
---     mrs = metarules1,
---     env = envenv,
---     fDepG = fdg,
---     expScheme = Forall [] $ Arrow (TTuple [TArray (TArray (BaseType "rigid"))]) (TArray (TArray (BaseType "rigid"))),
---     uid = 0
--- }
+-- IProgram {toDoStack = [Val "gen1" Empty,Val "gen2" Empty], doneStack = [Val "gen0" (Apply (Variable "comp") [Variable "gen2",Variable "gen1"])]}
 
--- main = putStr $ show $ runInfer $ inferDef envenv (Val "target" (Apply (Variable "map") [Hole])) (Just ["gen0"])
+pinf = ProgInfo {
+    mrs = metarules1,
+    envG = envG',
+    envI = envI',
+    fDepG = fdg,
+    expType = Arrow (TTuple [TArray (TArray (BaseType "Int"))]) (TArray (TArray (BaseType "Int"))),
+    uid = 100
+}
+
+-- main = putStr $ intercalate "\n\n" $ map show $ expand (iprogram, pinf)
+
+-- Val "gen5" (Apply (Variable "comp") [Variable "BK_reverse",Variable "BK_reverse"])
+-- Val "gen3" (Apply (Variable "map") [Variable "gen5"])
+-- Val "gen2" (Apply (Variable "comp") [Variable "gen3",Variable "BK_reverse"])
+-- Val "gen0" (Apply (Variable "comp") [Variable "gen3",Variable "gen2"])

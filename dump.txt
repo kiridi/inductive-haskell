@@ -1,4 +1,9 @@
-inductive-haskell-0.1.0.0: unregistering (local file changes: src/Search.hs)
+inductive-haskell-0.1.0.0: unregistering (local file changes: app/Main.hs)
 inductive-haskell> build (lib + exe)
 Preprocessing library for inductive-haskell-0.1.0.0..
 Building library for inductive-haskell-0.1.0.0..
+Preprocessing executable 'inductive-haskell-exe' for inductive-haskell-0.1.0.0..
+Building executable 'inductive-haskell-exe' for inductive-haskell-0.1.0.0..
+[2 of 2] Compiling Main
+Linking .stack-work/dist/x86_64-linux/Cabal-2.4.0.1/build/inductive-haskell-exe/inductive-haskell-exe ...
+inductive-haskell> copy/register

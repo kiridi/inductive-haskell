@@ -22,10 +22,15 @@ maybe_find (Env m) x = Map.lookup x m
 define :: Environment v -> Ident -> v -> Environment v
 define (Env m) x v = Env (Map.insert x v m)
 
+maybe_define :: Environment v -> Ident -> v -> Environment v
+maybe_define env x v = case maybe_find env x of
+  Just _ -> env
+  Nothing -> define env x v
+
 defargs :: Environment v -> [Ident] -> [v] -> Environment v
 defargs env fps args =
   if length args == length fps then
-    foldl (\ env' (x, v) -> define env' x v) env (zip fps args)
+    foldl (\ env' (x, v) -> maybe_define env' x v) env (zip fps args)
   else
     error "wrong number of args"
 

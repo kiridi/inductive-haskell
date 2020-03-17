@@ -24,13 +24,23 @@ import qualified Data.Set as Set
 
 import Debug.Trace
 
-runStepInfer :: Int -> Infer (Subst, Type, Maybe [Name], Expr) -> Maybe (Subst, Type, Expr)
-runStepInfer cnt m = case evalState (runMaybeT m) (Unique { count = cnt }) of
-  Nothing -> Nothing
-  Just (s, t, _, newE) -> Just $ (s, t, newE)
+runStepInfer :: Int -> Infer (Subst, Type, Maybe [Name], Expr) -> Maybe (Subst, Type, Expr, Int)
+runStepInfer cnt m = case runState (runMaybeT m) (Unique { count = cnt }) of
+  (Nothing, _) -> Nothing
+  (Just (s, t, _, newE), unq) -> Just $ (s, t, newE, count unq + 1)
 
 simpleLookup :: Environment Type -> Name -> Type
 simpleLookup env name = find env name
+
+freshenEnv :: Int -> Environment Type -> Environment Type
+freshenEnv n env = envMap env (freshenTyp n)
+
+freshenTyp :: Int -> Type -> Type
+freshenTyp n (TVar v) = TVar (show n ++ '_':v)
+freshenTyp n (TArray t) = TArray (freshenTyp n t)
+freshenTyp n (Arrow ins out) = Arrow (freshenTyp n ins) (freshenTyp n out)
+freshenTyp n (TTuple ts) = TTuple (map (freshenTyp n) ts)
+freshenTyp n (BaseType s) = BaseType s
 
 getFirstHole :: Maybe [Name] -> (Name, Maybe [Name])
 getFirstHole maybeH = 
@@ -62,12 +72,12 @@ inferSynth envI envG ex fills = case ex of
     tvs <- replicateM (length vs) fresh
     let envG' = foldl (\ te (tv, v) -> define te v tv) envG (zip tvs vs)
     (s, t, fs, newE) <- inferSynth envI envG' expr fills
-    return (s, apply s (Arrow (TTuple tvs) t), fs, Lambda vs newE)
+    return (s, Arrow (apply s (TTuple tvs)) t, fs, Lambda vs newE)
 
   Apply e es -> do
     tv <- fresh
     (s1, t1, fs, newE) <- inferSynth envI envG e fills
-    (ss, ts, fs', newEs) <- inferSynthListLTR envI envG es fs
+    (ss, ts, fs', newEs, _) <- inferSynthListLTR envI (apply s1 envG) es fs
     s2 <- unify (apply ss t1) (Arrow ts tv)
     return (s2 `compose` ss `compose` s1, apply s2 tv, fs', Apply newE newEs)
 
@@ -108,11 +118,11 @@ inferSynthDef envI envG (Val x body) fills = do
     (s1, t1, newf, newB) <- inferSynth envI envG body fills
     return (s1, t1, newf, newB)
 
-inferSynthListLTR :: TEnv -> Environment Type -> [Expr] -> Maybe [Name] -> Infer (Subst, Type, Maybe [Name], [Expr])
-inferSynthListLTR envI envG exprs fills = foldM step (nullSubst, TTuple [], fills, []) (reverse exprs)
-  where step (ns, TTuple ts, fs, exprs) e = do
-          (s, t, fs', nE) <- inferSynth envI envG e fs
-          return (s `compose` ns, TTuple (t:ts), fs', nE:exprs)
+inferSynthListLTR :: TEnv -> Environment Type -> [Expr] -> Maybe [Name] -> Infer (Subst, Type, Maybe [Name], [Expr], Environment Type)
+inferSynthListLTR envI envG exprs fills = foldM step (nullSubst, TTuple [], fills, [], envG) (reverse exprs)
+  where step (ns, TTuple ts, fs, exprs, oldEnv) e = do
+          (s, t, fs', nE) <- inferSynth envI oldEnv e fs
+          return (s `compose` ns, TTuple (t:ts), fs', nE:exprs, apply s oldEnv)
 
 -- inferSynthExpr :: TEnv -> EnvironmentExpr -> Maybe [Name] -> Maybe (Scheme, Maybe [Name], Expr)
 -- inferExpr env expr fills = runInfer $ (infer envI envG expr fills)

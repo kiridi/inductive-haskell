@@ -45,14 +45,14 @@ expand (ip, pinf)
         crtCounter = uid pinf
         stream = [ (fill (updatedPinf cProd pinf) def cProd, cProd) | 
                     (def, nHoles) <- specDefs,
-                    cProd <- sequence ([ ("gen" ++ show (crtCounter + n)) : onlyNames | n <- [0.. nHoles - 1]]) 
+                    cProd <- sequence ([onlyNames ++ (("gen" ++ show (crtCounter + n)):names (envG pinf)) | n <- [1.. nHoles]]) 
                  ]
         updatedPinf cp pinf = 
             let generated = filter (\name -> "gen" `isPrefixOf` name) cp
                 tags = [uid pinf .. uid pinf + (length generated) - 1] in
             if length generated > 0 then
             pinf { uid = (uid pinf) + length generated,
-                   envG = defargs (envG pinf) generated (map (\t -> TVar ("unknown" ++ show t)) tags) }
+                   envG = defargs (envG pinf) generated (map (\t -> TVar ("unk" ++ show t)) tags) }
             else pinf
         filterJusts ls mb = case mb of
             (Nothing, _) -> ls
@@ -64,14 +64,17 @@ applyMr ((Val name expr), mr) =
         Empty -> (Val name (body mr), nargs mr)
         _     -> error "When assigning mrs, the body should be empty"
 
+-- the problem is with the first can Unify: because variable overlap, can't univy or smth
 fill :: ProgInfo -> Defn -> [Name] -> Maybe (Defn, ProgInfo)
-fill pinf (Val name body) withs = do
+fill pinf (Val name body) withs = {-trace (if (withs == ["gen2"] || name == "gen2") then (show withs ++ show (apply sub1 $ envG pinf) ++ show (sub1, typ)) else "") $-} do
     newDepG <- foldM addEdge (fDepG pinf) (zip (repeat name) withs)
-    (sub1, typ, populated) <- runStepInfer (uid pinf) $ inferSynthDef (envI pinf) (envG pinf) (Val name body) (Just withs)
-    sub2 <- canUnify (simpleLookup (envG pinf) name) typ
+    (sub1, typ, populated, newUID) <- runStepInfer (uid pinf) $ inferSynthDef (envI pinf) (envG pinf) (Val name body) (Just withs)
+    sub2 <- trace (if (withs == ["gen3"]) then (show withs ++ show (apply sub1 $ envG pinf) ++ show (sub1, typ)) else "") $ canUnify (simpleLookup (apply sub1 (envG pinf)) name) typ
     let newPinf = pinf {
         envG = apply (sub2 `compose` sub1) (define (envG pinf) name typ),
-        fDepG = newDepG
+        fDepG = newDepG,
+        uid = newUID
     }
-    _ <- {-trace (show populated ++ "\n" ++ show typ ++ "\n" ++ show (envG pinf) ++ "\n" ++ show (envG newPinf) ++ "\n" ++ show sub1 ++ "\n" ++ show sub2)-} canUnify (expType pinf) (simpleLookup (envG newPinf) "gen0")
+    _ <- canUnify (expType pinf) (simpleLookup (envG newPinf) "gen0")
     return (Val name populated, newPinf)
+    

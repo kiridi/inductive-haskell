@@ -146,12 +146,12 @@ infer env ex = case ex of
     tvs <- replicateM (length vs) fresh
     let env' = foldl (\ te (tv, v) -> define te v (Forall [] tv)) env (zip tvs vs)
     (s, t) <- infer env' expr
-    return (s, apply s (Arrow (TTuple tvs) t))
+    return (s, Arrow (apply s (TTuple tvs)) t)
 
   Apply e es -> do
     tv <- fresh
     (s1, t1) <- infer env e
-    (ss, ts) <- inferListLTR env es
+    (ss, ts, _) <- inferListLTR (apply s1 env) es
     s2 <- unify (apply ss t1) (Arrow ts tv)
     return (s2 `compose` ss `compose` s1, apply s2 tv)
 
@@ -185,17 +185,18 @@ inferDef tenv (Val x body) = do
     return (s1, t1)
     
 inferDef tenv (Rec x body) = do
-    nV <- fresh
-    let expEnv = define tenv x (Forall [] nV)
+    a <- fresh
+    b <- fresh
+    let expEnv = define tenv x (Forall [] $ Arrow a b)
     (s1, t1) <- infer expEnv body
-    s2 <- unify (apply s1 t1) nV
+    s2 <- unify t1 (apply s1 $ Arrow a b)
     return (s2 `compose` s1, apply s2 t1)
 
-inferListLTR :: TEnv -> [Expr] -> Infer (Subst, Type)
-inferListLTR tenv exprs = foldM step (nullSubst, TTuple []) (reverse exprs)
-  where step (ns, TTuple ts) e = do
-          (s, t) <- infer tenv e 
-          trace (show exprs ++ "\n" ++ show (s `compose` ns, apply ns $ TTuple (t:ts))) $ return (s `compose` ns, apply ns $ TTuple (t:ts))
+inferListLTR :: TEnv -> [Expr] -> Infer (Subst, Type, TEnv)
+inferListLTR tenv exprs = foldM step (nullSubst, TTuple [], tenv) (reverse exprs)
+  where step (ns, TTuple ts, oldEnv) e = do
+          (s, t) <- infer oldEnv e 
+          return (s `compose` ns, (TTuple (t:ts)), apply s oldEnv)
 
 inferExpr :: TEnv -> Expr -> Maybe Scheme
 inferExpr env expr = runInfer $ (infer env expr)

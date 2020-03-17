@@ -5,14 +5,14 @@ rec map(f) = lambda (xs)
     then nil
     else f(head(xs)):map(f)(tail(xs))) ;;
 
-val BK_addOne(x) = x + 1;;
+--val BK_addOne(x) = x + 1;;
 
-val BK_addTwo(x) = x + 2;;
+--val BK_addTwo(x) = x + 2;;
 
-val BK_isOdd(x) = 
-    if x mod 2 = 0 
-    then false
-    else true;;
+--val BK_isOdd(x) = 
+--    if x mod 2 = 0 
+--    then false
+--    else true;;
 
 rec reverse1 = lambda (xs, ys)
     if xs = nil

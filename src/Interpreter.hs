@@ -203,7 +203,7 @@ obey (Synth expectedType) (venv, tenv, eenv) = (show prog, (venv, tenv, eenv))
         initProgInfo   = ProgInfo {
           mrs = metarules,
           envI = tenv,
-          envG = define empty_env "gen0" (TVar "unknown0"),
+          envG = define empty_env "gen0" (TVar "unk0"),
           fDepG = emptyGraph,
           uid = 1,
           expType = expectedType
@@ -211,20 +211,20 @@ obey (Synth expectedType) (venv, tenv, eenv) = (show prog, (venv, tenv, eenv))
 
 compMr = Metarule {
     name = "comp", 
-    body = Apply (Variable "comp") [Hole, Hole],
+    body = Lambda ["gen_x"] (Apply (Apply (Variable "comp") [Hole, Hole]) [Variable "gen_x"]),
     nargs = 2 
 }
 mapMr = Metarule {
     name = "map",
-    body = Apply (Variable "map") [Hole],
+    body = Lambda ["gen_xs"] (Apply (Apply (Variable "map") [Hole]) [Variable "gen_xs"]),
     nargs = 1
 }
 metarules = [compMr, mapMr]
 
 check :: VEnv -> EEnv -> (IProgram, ProgInfo) -> Bool
-check venv eenv (iprog, pinf) = trace (show iprog) $
+check venv eenv (iprog, pinf) =
   case toDoStack iprog of
-    [] -> checkTarget (doneStack iprog) venv eenv
+    [] -> trace (show iprog ++ "\n") $ checkTarget (doneStack iprog) venv eenv
     _  -> False
 
 instance Eq Value where
