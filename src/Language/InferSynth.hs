@@ -32,15 +32,15 @@ runStepInfer cnt m = case runState (runMaybeT m) (Unique { count = cnt }) of
 simpleLookup :: Environment Type -> Name -> Type
 simpleLookup env name = find env name
 
-freshenEnv :: Int -> Environment Type -> Environment Type
-freshenEnv n env = envMap env (freshenTyp n)
+-- freshenEnv :: Int -> Environment Type -> Environment Type
+-- freshenEnv n env = envMap env (freshenTyp n)
 
-freshenTyp :: Int -> Type -> Type
-freshenTyp n (TVar v) = TVar (show n ++ '_':v)
-freshenTyp n (TArray t) = TArray (freshenTyp n t)
-freshenTyp n (Arrow ins out) = Arrow (freshenTyp n ins) (freshenTyp n out)
-freshenTyp n (TTuple ts) = TTuple (map (freshenTyp n) ts)
-freshenTyp n (BaseType s) = BaseType s
+-- freshenTyp :: Int -> Type -> Type
+-- freshenTyp n (TVar v) = TVar (show n ++ '_':v)
+-- freshenTyp n (TArray t) = TArray (freshenTyp n t)
+-- freshenTyp n (Arrow ins out) = Arrow (freshenTyp n ins) (freshenTyp n out)
+-- freshenTyp n (TTuple ts) = TTuple (map (freshenTyp n) ts)
+-- freshenTyp n (BaseType s) = BaseType s
 
 getFirstHole :: Maybe [Name] -> (Name, Maybe [Name])
 getFirstHole maybeH = 

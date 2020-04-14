@@ -110,7 +110,7 @@ module Language.FunParser(funParser) where
       do eat VAL; (x, e) <- p_eqn; return (Val x e)
       <+> do eat REC; (x, e) <- p_eqn; return (Rec x e)
       <+> do eat PEX; ins <- p_actuals; eat ARROW; out <- p_expr; return (PEx ins out)
-      <+> do eat NEX; ins <- p_actuals; eat ARROW; out <- p_expr; return (NEx ins out)
+      <+> do eat NEX; ins <- p_actuals; eat ARROW; out <- p_expr; return (NEx ins out) 
     
     -- {\syn _eqn_ \arrow\ _name_ "=" _expr_ \orr\ _name_ _formals_ "=" _expr_}
     p_eqn =
@@ -121,7 +121,7 @@ module Language.FunParser(funParser) where
       do eat INT; return (BaseType "Int") 
       <+> do eat BOOL; return (BaseType "Bool")
       <+> do eat CHAR; return (BaseType "Char")
-      <+> do x <- p_name; return (TVar x)
+      <+> do x <- p_name; return (TVar $ x ++ "0")
       <+> do eat BRA; t <- p_type; eat KET; return (TArray t)
       <+> do eat LPAR; ins <- p_list0 p_type COMMA; eat RPAR; eat ARROW; out <- p_type; return (Arrow (TTuple ins) out)
 

@@ -32,7 +32,7 @@ data ProgInfo = ProgInfo {
     fDepG :: DepGraph,
     uid :: UniqueID,
     expType :: Type,
-    
+    mustUnify :: [(Type, Type)]
 } deriving Show
 
 ----- Helpers

@@ -75,6 +75,6 @@ fill pinf (Val name body) withs = {-trace (if (withs == ["gen2"] || name == "gen
         fDepG = newDepG,
         uid = newUID
     }
-    _ <- canUnify (expType pinf) (simpleLookup (envG newPinf) "gen0")
+    --_ <- canUnify (expType pinf) (simpleLookup (envG newPinf) "gen0")
     return (Val name populated, newPinf)
     

@@ -203,11 +203,17 @@ obey (Synth expectedType) (venv, tenv, eenv) = (show prog, (venv, tenv, eenv))
         initProgInfo   = ProgInfo {
           mrs = metarules,
           envI = tenv,
-          envG = define empty_env "gen0" (TVar "unk0"),
+          envG = define empty_env "gen0" expectedType,
           fDepG = emptyGraph,
           uid = 1,
           expType = expectedType
         }
+
+-- getMetarules :: VEnv -> TEnv -> [Metarule]
+-- getMetarules venv tenv = 
+--   where
+
+--     onlyMrs = filter (\ (n, _) -> "MR_" `isPrefixOf` n) (envToList venv)
 
 compMr = Metarule {
     name = "comp", 

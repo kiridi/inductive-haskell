@@ -1,6 +1,6 @@
-val comp(f, g) = lambda (x) f(g(x)) ;;
+val MR_comp(f, g) = lambda (x) f(g(x)) ;;
 
-rec map(f) = lambda (xs)
+rec MR_map(f) = lambda (xs)
     (if xs = nil
     then nil
     else f(head(xs)):map(f)(tail(xs))) ;;
