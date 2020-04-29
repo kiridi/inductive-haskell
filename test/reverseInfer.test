@@ -1,4 +1,0 @@
-rec reverse1 = lambda (xs, ys)
-    if xs = nil
-    then ys
-    else reverse1(tail(xs), head(xs):ys);;

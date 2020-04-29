@@ -1,0 +1,56 @@
+val comp(f, g) = lambda (x) f(g(x)) ;;
+
+rec map(f) = lambda (xs)
+    (if xs = nil
+    then nil
+    else f(head(xs)):map(f)(tail(xs))) ;;
+
+rec filter(p) = lambda (xs)
+    (if xs = nil
+    then nil
+    else 
+        if (p(head(xs)))
+        then head(xs):filter(p)(tail(xs))
+        else filter(p)(tail(xs))) ;;
+
+rec arrayEq(xs, ys) = 
+    if ((xs = nil) & (ys = nil))
+    then true
+    else
+        if (head(xs) <> head(ys))
+        then false
+        else arrayEq(tail(xs), tail(ys));; 
+
+val noObst(xs) = 
+    if (arrayEq(xs, 1:0:nil))
+    then false
+    else true ;;
+
+val inLimits(xs) = 
+    if ((head(xs) < 0) | (head(xs) > 4) | (head(tail(xs)) < 0) | (head(tail(xs)) > 4))
+    then false
+    else true;;
+
+val BK_moveRight(xs) = 
+    if (inLimits((head(xs) + 1):tail(xs)) & noObst((head(xs) + 1):tail(xs)))
+    then (head(xs) + 1):tail(xs)
+    else xs;;
+
+val BK_moveUp(xs) = 
+    if (inLimits((head(xs)):(head(tail(xs)) + 1):nil) & noObst(head(xs):(head(tail(xs)) + 1):nil))
+    then (head(xs)):(head(tail(xs)) + 1):nil
+    else xs;;
+
+val BK_moveDown(xs) = 
+    if (inLimits(head(xs):(head(tail(xs)) - 1):nil) & noObst(head(xs):(head(tail(xs)) - 1):nil))
+    then head(xs):(head(tail(xs)) - 1):nil
+    else xs;;
+
+val BK_moveLeft(xs) = 
+    if (inLimits((head(xs) - 1):tail(xs)) & noObst((head(xs) - 1):tail(xs)))
+    then (head(xs) - 1):tail(xs)
+    else xs;;
+
+NEx (list(0,0)) => list(0,0) ;;
+PEx (list(0,0)) => list(3,3) ;;
+Synthesize ([Int]) => [Int];;

@@ -17,22 +17,20 @@ data Metarule = Metarule {
 data IProgram = IProgram {
     toDoStack :: [Defn],
     doneStack :: [Defn]
-} deriving Show
+}
 
--- instance Show IProgram where
---     show ip = intercalate "\n" (map show (doneStack ip))
+instance Show IProgram where
+    show (IProgram [] doneStack) = "\n" ++ intercalate "\n" (map show doneStack)
 
 type UniqueID = Int
 type Metarules = [Metarule]
 
 data ProgInfo = ProgInfo {
     mrs :: Metarules,
-    envI :: Environment Scheme,  -- the already infered stuff
-    envG :: Environment Type,    -- the to be synth infer stuff
+    fibk :: [Name],
     fDepG :: DepGraph,
     uid :: UniqueID,
-    expType :: Type,
-    mustUnify :: [(Type, Type)]
+    expType :: Type
 } deriving Show
 
 ----- Helpers
@@ -40,10 +38,7 @@ data ProgInfo = ProgInfo {
 pushDefn :: Defn -> IProgram -> [Name] -> IProgram
 pushDefn defn ip fills = ip {
     doneStack = defn : doneStack ip,
-    toDoStack = [Val n Empty | n <- names, notUsed n (toDoStack ip)] ++ toDoStack ip }
-    where
-        names = filter (\name -> "gen" `isPrefixOf` name) fills
-        notUsed name defs = not $ any (\(Val n _) -> name == n) defs
+    toDoStack = [Val n Empty | n <- fills] ++ toDoStack ip }
  
 popCand :: IProgram -> (Defn, IProgram)
 popCand ip = (head (toDoStack ip), ip { toDoStack = tail (toDoStack ip) })

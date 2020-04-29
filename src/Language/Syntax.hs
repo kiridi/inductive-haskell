@@ -1,6 +1,9 @@
 module Language.Syntax where
 
 import Language.Types
+import Data.String
+import Data.Char
+import Data.List
 
 data Phrase = Calculate Expr
             | Define Defn
@@ -16,13 +19,18 @@ data Expr = Number Integer
           | Let Defn Expr
           | Hole
           | Empty
-          deriving Show
+
+instance Show Expr where
+    show (Variable n) = n
+    show (Apply e2 es) = show e2 ++ " " ++ intercalate " " (map show es)
 
 data Defn = Val Ident Expr
           | Rec Ident Expr
           | PEx [Expr] Expr
           | NEx [Expr] Expr
-          deriving Show
+          
+instance Show Defn where
+    show (Val id exp) = id ++ " = " ++ show exp
 
 type Ident = String
 

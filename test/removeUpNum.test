@@ -1,23 +1,25 @@
--- isUpperCase, isLowerCase, isAlpha, isDigit are all primitives
--- borrowed from Haskell
+rec map(f) = lambda (xs)
+    (if xs = nil
+    then nil
+    else f(head(xs)):map(f)(tail(xs))) ;;
 
-val mIsUpper(x@Char)@Bool = isUpperCase(x);;
--- val mIsLower(x@Char)@Bool = isLowerCase(x);;
-val mIsAlpha(x@Char)@Bool = isAlpha(x);;
-val mIsDigit(x@Char)@Bool = isDigit(x);;
-val not(x@Bool)@Bool = if x = true then false else true;;
+val comp(f, g) = lambda (x) f(g(x)) ;;
 
--- Target program:
---   target = gen1.gen2
---   gen2 = filter mIsAlpha
---   gen1 = filter gen6
---   gen6 = not.mIsUpper
+rec filter(p) = lambda (xs)
+    (if xs = nil
+    then nil
+    else 
+        if (p(head(xs)))
+        then head(xs):filter(p)(tail(xs))
+        else filter(p)(tail(xs))) ;;
 
--- If `not` is removed and `mIsLower` is added, the target
--- becomes much shorter: `target = mIsLower`.
+val BK_mIsUpper(x) = isUpper(x);;
+val BK_mIsAlpha(x) = isAlpha(x);;
+val BK_mIsDigit(x) = isDigit(x);;
+val BK_not(x) = if x = true then false else true;;
 
-NEX target (list('a', 'B', 'C', '1', '2')) => list('a', 'B') ;;
-NEX target (list('a', 'B', 'C', '1')) => list('a', 'B') ;;
-PEX target (list('a', 'B', 'C', '1', '2')) => list('a') ;;
-PEX target (list('a', 'B', 'C', '1', 'b', 'c')) => list('a', 'b', 'c') ;;
-SYNTH target(xs @ [Char]) @ [Char];;
+NEx (list('a', 'B', 'C', '1', '2')) => list('a', 'B') ;;
+NEx (list('a', 'B', 'C', '1')) => list('a', 'B') ;;
+PEx (list('a', 'B', 'C', '1', '2')) => list('a') ;;
+PEx (list('a', 'B', 'C', '1', 'b', 'c')) => list('a', 'b', 'c') ;;
+Synthesize ([Char]) => [Char];;

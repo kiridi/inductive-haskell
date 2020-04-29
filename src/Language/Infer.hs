@@ -81,6 +81,16 @@ nullSubst = Map.empty
 compose :: Subst -> Subst -> Subst
 s1 `compose` s2 = s1 `Map.union` Map.map (apply s1) s2
 
+morphs s t = case evalState (runMaybeT $ morphs' s t) initUnique of
+  Nothing -> False
+  Just _ -> True
+
+morphs' :: Scheme -> Type -> Infer Subst
+morphs' s t = do
+  t' <- instantiate s
+  s <- unify t t'
+  return s 
+
 unify ::  Type -> Type -> Infer Subst
 unify (l `Arrow` r) (l' `Arrow` r') = do
   s1 <- unify l l'
@@ -157,8 +167,8 @@ infer env ex = case ex of
 
   If e1 e2 e3 -> do
     (s1, t1) <- infer env e1
-    (s2, t2) <- infer env e2
-    (s3, t3) <- infer env e3
+    (s2, t2) <- infer (apply s1 env) e2
+    (s3, t3) <- infer (apply s2 env) e3
     s4 <- unify t1 (BaseType "Bool")
     s5 <- unify t2 t3
     return (s5 `compose` s4 `compose` s3 `compose` s2 `compose` s1, apply s5 t2)

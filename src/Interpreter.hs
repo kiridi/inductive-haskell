@@ -95,9 +95,12 @@ addExample (NEx ins out) venv eenv =
   where eins = map (\ e -> eval e venv) ins
         eout = eval out venv
 
-checkTarget :: [Defn] -> VEnv -> EEnv -> Bool
-checkTarget funcs venv eenv =
-  res_pos get_pex == True && res_neg get_nex == False
+checkTarget :: [Defn] -> Type -> TEnv -> VEnv -> EEnv -> Bool
+checkTarget funcs targetType tenv venv eenv =
+  if canType && (fromJust candidateScheme) `morphs` targetType then
+    res_pos get_pex == True && res_neg get_nex == False
+  else
+    False
   where (get_pex, get_nex) = find eenv "gen0"
         newEnv = (foldl (\env' def -> elab def env') venv funcs)
         checkPosEx (Pos ins out) b = (applyF (eval (Variable "gen0") newEnv) ins == out) && b
@@ -106,7 +109,14 @@ checkTarget funcs venv eenv =
         checkNegEx _ _ = error "Error when checking the negative examples"
         res_pos exs = foldr checkPosEx True exs
         res_neg exs = foldr checkNegEx False exs
-        
+        (canType, candidateScheme) = typeCheck tenv funcs
+
+typeCheck :: TEnv -> [Defn] -> (Bool, Maybe Scheme)
+typeCheck tenv [] = (True, Just $ find tenv "gen0")
+typeCheck tenv (Val name expr : defs) = 
+  case inferExpr tenv expr  of
+    Nothing -> (False, Nothing)
+    Just sch -> typeCheck (define tenv name sch) defs 
 
 init_env :: VEnv
 init_env = 
@@ -128,28 +138,19 @@ init_env =
     pureprim ">=" (\ [IntVal a, IntVal b] -> BoolVal (a >= b)),
     pureprim "=" (\ [a, b] -> BoolVal (a == b)),
     pureprim "<>" (\ [a, b] -> BoolVal (a /= b)),
+    pureprim "&" (\ [BoolVal a, BoolVal b] -> BoolVal (a && b)),
+    pureprim "|" (\ [BoolVal a, BoolVal b] -> BoolVal (a || b)),
     pureprim "head" (\ [Cons h t] -> h),
     pureprim "tail" (\ [Cons h t] -> t),
     pureprim ":" (\ [a, b] -> Cons a b),
     
     pureprim "isAlpha" (\ [CharVal a] -> BoolVal (isAlpha a)),
-    pureprim "isLowerCase" (\ [CharVal a] -> BoolVal (isLower a)),
-    pureprim "isUpperCase" (\ [CharVal a] -> BoolVal (isUpper a)),
+    pureprim "isLower" (\ [CharVal a] -> BoolVal (isLower a)),
+    pureprim "isUpper" (\ [CharVal a] -> BoolVal (isUpper a)),
     pureprim "isDigit" (\ [CharVal a] -> BoolVal (isDigit a)),
     pureprim "list" (\ xs -> foldr Cons Nil xs)]
-    -- pureprim "map" (\[Function f, xs] -> mapply f xs),
-    -- pureprim "filter" (\[Function p, xs] -> fapply p xs)]
     where constant x v = (x, v)
           pureprim x f = (x, Function (primwrap x f))
-          
-          -- mapply f Nil = Nil
-          -- mapply f (Cons a b) = Cons (f [a]) (mapply f b)
-
-          -- fapply p Nil = Nil
-          -- fapply p (Cons a b) = 
-          --   case p [a] of
-          --     BoolVal True -> Cons a (fapply p b)
-          --     BoolVal False -> fapply p b
 
 init_tenv :: TEnv
 init_tenv = 
@@ -169,15 +170,17 @@ init_tenv =
     (">=", Forall [] $ Arrow (TTuple [BaseType "Int", BaseType "Int"]) (BaseType "Bool")),
     ("=", Forall ["a"] $ Arrow (TTuple [TVar "a", TVar "a"]) (BaseType "Bool")),
     ("<>", Forall ["a"] $ Arrow (TTuple [TVar "a", TVar "a"]) (BaseType "Bool")),
+    ("&", Forall [] $ Arrow (TTuple [BaseType "Bool", BaseType "Bool"]) (BaseType "Bool")),
+    ("|", Forall [] $ Arrow (TTuple [BaseType "Bool", BaseType "Bool"]) (BaseType "Bool")),
     ("head", Forall ["a"] $ Arrow (TTuple [TArray (TVar "a")]) (TVar "a")),
     ("tail", Forall ["a"] $ Arrow (TTuple [TArray (TVar "a")]) (TArray (TVar "a"))),
     (":", Forall ["a"] $ Arrow (TTuple [TVar "a", TArray (TVar "a")]) (TArray (TVar "a"))),
     
-    ("isAlpha", Forall [] $ Arrow (TTuple [TArray (BaseType "Char")]) (BaseType "Bool")),
-    ("isLower", Forall [] $ Arrow (TTuple [TArray (BaseType "Char")]) (BaseType "Bool")),
-    ("isUpper", Forall [] $ Arrow (TTuple [TArray (BaseType "Char")]) (BaseType "Bool")),
-    ("isDigit", Forall [] $ Arrow (TTuple [TArray (BaseType "Char")]) (BaseType "Bool")),
-    ("isAlpha", Forall [] $ Arrow (TTuple [TArray (BaseType "Char")]) (BaseType "Bool"))]
+    ("isAlpha", Forall [] $ Arrow (TTuple [BaseType "Char"]) (BaseType "Bool")),
+    ("isLower", Forall [] $ Arrow (TTuple [BaseType "Char"]) (BaseType "Bool")),
+    ("isUpper", Forall [] $ Arrow (TTuple [BaseType "Char"]) (BaseType "Bool")),
+    ("isDigit", Forall [] $ Arrow (TTuple [BaseType "Char"]) (BaseType "Bool")),
+    ("isAlpha", Forall [] $ Arrow (TTuple [BaseType "Char"]) (BaseType "Bool"))]
 
 obey :: Phrase -> (VEnv, TEnv, EEnv) -> (String, (VEnv, TEnv, EEnv))
 
@@ -197,13 +200,12 @@ obey (Define def) (venv, tenv, eenv) =
         isEx _  = False
 
 obey (Synth expectedType) (venv, tenv, eenv) = (show prog, (venv, tenv, eenv))
-  where Just prog = progSearch (check venv eenv) expand (initProg, initProgInfo)
+  where Just prog = progSearch (check tenv venv eenv) expand (initProg, initProgInfo)
         bkfof          = envToList tenv
         initProg       = IProgram [Val "gen0" Empty] [] 
         initProgInfo   = ProgInfo {
           mrs = metarules,
-          envI = tenv,
-          envG = define empty_env "gen0" expectedType,
+          fibk = names tenv,
           fDepG = emptyGraph,
           uid = 1,
           expType = expectedType
@@ -212,26 +214,35 @@ obey (Synth expectedType) (venv, tenv, eenv) = (show prog, (venv, tenv, eenv))
 -- getMetarules :: VEnv -> TEnv -> [Metarule]
 -- getMetarules venv tenv = 
 --   where
-
 --     onlyMrs = filter (\ (n, _) -> "MR_" `isPrefixOf` n) (envToList venv)
 
 compMr = Metarule {
     name = "comp", 
-    body = Lambda ["gen_x"] (Apply (Apply (Variable "comp") [Hole, Hole]) [Variable "gen_x"]),
+    body = (Apply (Variable "comp") [Hole, Hole]),
     nargs = 2 
 }
 mapMr = Metarule {
     name = "map",
-    body = Lambda ["gen_xs"] (Apply (Apply (Variable "map") [Hole]) [Variable "gen_xs"]),
+    body = (Apply (Variable "map") [Hole]),
     nargs = 1
 }
-metarules = [compMr, mapMr]
+filterMr = Metarule {
+    name = "filter",
+    body = (Apply (Variable "filter") [Hole]),
+    nargs = 1
+}
+metarules = [compMr, mapMr, filterMr]
 
-check :: VEnv -> EEnv -> (IProgram, ProgInfo) -> Bool
-check venv eenv (iprog, pinf) =
+check :: TEnv -> VEnv -> EEnv -> (IProgram, ProgInfo) -> Bool
+check tenv venv eenv (iprog, pinf) =
   case toDoStack iprog of
-    [] -> trace (show iprog ++ "\n") $ checkTarget (doneStack iprog) venv eenv
+    [] -> checkTarget (rightOrder (doneStack iprog) (topoSort $ fDepG pinf)) (expType pinf) tenv venv eenv
     _  -> False
+
+rightOrder defns [] = defns
+rightOrder defns names = [Val name (Map.findWithDefault Empty name mapDef) | name <- names]
+  where
+    mapDef = Map.fromList [(name, body) | (Val name body) <- defns]
 
 instance Eq Value where
   IntVal a == IntVal b = a == b

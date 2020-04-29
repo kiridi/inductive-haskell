@@ -9,7 +9,6 @@ import Language.Syntax
 import Language.Environment
 import Language.Types
 import Language.Infer
-import Language.InferSynth
 import Data.Maybe
 import Debug.Trace
 import Data.Char
@@ -28,7 +27,7 @@ progSearch check next initInfo =
             | check crtState == True  = Just (fst crtState)
             | check crtState == False = selectFirstResult (dbSearch (d - 1) check next) (next crtState)
           selectFirstResult select [] = Nothing
-          selectFirstResult select (xm:xms) =
+          selectFirstResult select (xm:xms) = 
             case select xm of
                 Nothing -> selectFirstResult select xms
                 Just x  -> Just x
@@ -40,23 +39,20 @@ expand (ip, pinf)
     where
         (defn, newIProg) = popCand ip
         specDefs = map applyMr (zip (repeat defn) (mrs pinf))
-        onlyNames = [ name | (name, _) <- envToList (envI pinf), "BK_" `isPrefixOf` name ] ++
-                    [ name | (name, _) <- envToList (envG pinf) ] 
+        onlyNames = [ name | name <- fibk pinf, "BK_" `isPrefixOf` name || "gen" `isPrefixOf` name]
         crtCounter = uid pinf
         stream = [ (fill (updatedPinf cProd pinf) def cProd, cProd) | 
                     (def, nHoles) <- specDefs,
-                    cProd <- sequence ([onlyNames ++ (("gen" ++ show (crtCounter + n)):names (envG pinf)) | n <- [1.. nHoles]]) 
-                 ]
+                    cProd <- sequence ([onlyNames ++ ["gen" ++ show (crtCounter + n)] | n <- [1.. nHoles]]) ]
         updatedPinf cp pinf = 
-            let generated = filter (\name -> "gen" `isPrefixOf` name) cp
-                tags = [uid pinf .. uid pinf + (length generated) - 1] in
-            if length generated > 0 then
-            pinf { uid = (uid pinf) + length generated,
-                   envG = defargs (envG pinf) generated (map (\t -> TVar ("unk" ++ show t)) tags) }
-            else pinf
+            let newOnes = news cp in
+            pinf { uid = crtCounter + length newOnes,
+                   fibk = (fibk pinf) ++ newOnes }
         filterJusts ls mb = case mb of
             (Nothing, _) -> ls
-            (Just (d, pi), fills) -> ((pushDefn d newIProg fills), pi):ls
+            (Just (d, pi), fills) -> ((pushDefn d newIProg (news fills)), pi):ls
+        news ls = filter (\name -> "gen" `isPrefixOf` name && 
+                                   (read (drop 3 name) :: Int) > crtCounter) ls
 
 applyMr :: (Defn, Metarule) -> (Defn, Int)
 applyMr ((Val name expr), mr) = 
@@ -64,17 +60,31 @@ applyMr ((Val name expr), mr) =
         Empty -> (Val name (body mr), nargs mr)
         _     -> error "When assigning mrs, the body should be empty"
 
--- the problem is with the first can Unify: because variable overlap, can't univy or smth
 fill :: ProgInfo -> Defn -> [Name] -> Maybe (Defn, ProgInfo)
-fill pinf (Val name body) withs = {-trace (if (withs == ["gen2"] || name == "gen2") then (show withs ++ show (apply sub1 $ envG pinf) ++ show (sub1, typ)) else "") $-} do
-    newDepG <- foldM addEdge (fDepG pinf) (zip (repeat name) withs)
-    (sub1, typ, populated, newUID) <- runStepInfer (uid pinf) $ inferSynthDef (envI pinf) (envG pinf) (Val name body) (Just withs)
-    sub2 <- trace (if (withs == ["gen3"]) then (show withs ++ show (apply sub1 $ envG pinf) ++ show (sub1, typ)) else "") $ canUnify (simpleLookup (apply sub1 (envG pinf)) name) typ
-    let newPinf = pinf {
-        envG = apply (sub2 `compose` sub1) (define (envG pinf) name typ),
-        fDepG = newDepG,
-        uid = newUID
-    }
-    --_ <- canUnify (expType pinf) (simpleLookup (envG newPinf) "gen0")
-    return (Val name populated, newPinf)
+fill pinf (Val name body) withs =
+    case foldM addEdge (fDepG pinf) (zip [n | n <- withs, "gen" `isPrefixOf` n] (repeat name)) of
+        Nothing -> Nothing
+        Just newDepG -> return (Val name (fst $ fillHoles body withs), pinf { fDepG = newDepG })
+
+fillHoles :: Expr -> [Name] -> (Expr, [Name])
+fillHoles e names = case e of
+    Number n -> (Number n, names)
+    Character c -> (Character c, names)
+    Variable v -> (Variable v, names)
+    Lambda vs expr -> let (e, ns) = fillHoles expr names in
+                      (Lambda vs e, ns)
+    Apply e es -> let (e', ns) = fillHoles e names in
+                  let (es', ns') = fillHolesLTR es ns in
+                  (Apply e' es', ns')
+    If e1 e2 e3 -> let (e1', ns1) = fillHoles e1 names in
+                   let (e2', ns2) = fillHoles e2 ns1 in
+                   let (e3', ns3) = fillHoles e3 ns2 in
+                   (If e1' e2' e3', ns3)
+    Hole -> (Variable (head names), tail names)
     
+fillHolesLTR :: [Expr] -> [Name] -> ([Expr], [Name])
+fillHolesLTR [] n = ([], n)
+fillHolesLTR (expr:exprs) names = (newExpr:restsE, restsN)
+    where 
+        (newExpr, newNames) = fillHoles expr names
+        (restsE, restsN) = fillHolesLTR exprs newNames

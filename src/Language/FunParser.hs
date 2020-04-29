@@ -18,7 +18,7 @@ module Language.FunParser(funParser) where
       deriving Eq
       
     data IdKind = 
-      ID | MONOP | CONSOP | MULOP | ADDOP | RELOP 
+      ID | MONOP | CONSOP | MULOP | ADDOP | RELOP | LOP
       deriving (Eq, Show)
     
     instance Show Token where
@@ -64,7 +64,7 @@ module Language.FunParser(funParser) where
           '+' -> return (IDENT ADDOP "+")
           '-' -> switch [('-', do scanComment; lexer)] (return MINUS)
           '*' -> return STAR
-          '&' -> return AMPER
+          '&' -> return (IDENT LOP "&")
           '!' -> return (IDENT MONOP "!")
           '~' -> return (IDENT MONOP "~")
           ',' -> return COMMA
@@ -82,7 +82,7 @@ module Language.FunParser(funParser) where
           '{' -> return LBRACE
           '}' -> return RBRACE
           '.' -> return DOT
-          '|' -> return VBAR
+          '|' -> return (IDENT LOP "|")
           ';' -> switch [(';', return SSEMI)] (return SEMI)
           ':' -> switch [('=', return ASSIGN)] 
             (return (IDENT CONSOP ":"))
@@ -146,13 +146,15 @@ module Language.FunParser(funParser) where
 
     p_term5 = p_opchainl p_relop p_term4 
     p_term4 = p_opchainl p_addop p_term3
-    p_term3 = p_opchainl p_mulop p_term2
+    p_term3 = p_opchainl p_mulop p_terma
+    p_terma = p_opchainl p_lop p_termb
+    p_termb = p_opchainl p_lop p_term2
     p_term2 = p_opchainr (p_ident CONSOP) p_term1
     
     p_relop = p_ident RELOP <+> (do eat EQUAL; return "=")
     p_addop = p_ident ADDOP <+> (do eat MINUS; return "-")
-    p_mulop = p_ident MULOP <+> (do eat STAR; return "*")
-    
+    p_mulop = p_ident MULOP <+> (do eat VBAR; return "*")
+    p_lop = p_ident LOP 
     p_opchainl :: Parser t Ident -> Parser t Expr -> Parser t Expr
     p_opchainl p_op p_rand = 
       do e0 <- p_rand; p_tail e0
@@ -213,7 +215,7 @@ module Language.FunParser(funParser) where
     p_name = p_ident ID <+> (do eat LPAR; x <- p_op; eat RPAR; return x)
     
     p_op =
-      p_ident MONOP <+> p_addop <+> p_mulop <+> p_relop
+      p_ident MONOP <+> p_addop <+> p_mulop <+> p_relop <+> p_lop
     
     p_ident k =
       do t <- scan; case t of IDENT k' x | k == k' -> return x; _ -> p_fail

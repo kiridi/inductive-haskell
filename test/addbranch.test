@@ -1,0 +1,22 @@
+val comp(f, g) = lambda (x) f(g(x)) ;;
+
+rec map(f) = lambda (xs)
+    (if xs = nil
+    then nil
+    else f(head(xs)):map(f)(tail(xs))) ;;
+
+rec filter(p) = lambda (xs)
+    (if xs = nil
+    then nil
+    else 
+        if (p(head(xs)))
+        then head(xs):filter(p)(tail(xs))
+        else filter(p)(tail(xs))) ;;
+
+val BK_addOne(x) = x + 1 ;;
+
+NEx (1) => 2 ;;
+NEx (3) => 5 ;;
+PEx (1) => 7 ;;
+PEx (7) => 13 ;;
+Synthesize (Int) => Int;;
