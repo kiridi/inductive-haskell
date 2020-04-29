@@ -23,9 +23,9 @@ progSearch :: (ProgState -> Bool) -> (ProgState -> [ProgState]) -> ProgState -> 
 progSearch check next initInfo = 
     selectFirstResult (\d -> (trace ("Searching at depth " ++ show d ++ "...")) dbSearch d check next initInfo) [1 .. ]
     where dbSearch d check next crtState
-            | d == 0                  = Nothing
-            | check crtState == True  = Just (fst crtState)
-            | check crtState == False = selectFirstResult (dbSearch (d - 1) check next) (next crtState)
+            | d == 0 && not (check crtState) = Nothing
+            | check crtState == True         = Just (fst crtState)
+            | check crtState == False        = selectFirstResult (dbSearch (d - 1) check next) (next crtState)
           selectFirstResult select [] = Nothing
           selectFirstResult select (xm:xms) = 
             case select xm of
